@@ -1,16 +1,21 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Plus_Jakarta_Sans } from "next/font/google";
+import { IBM_Plex_Mono, Onest, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 
-const display = Instrument_Serif({
+const sans = Onest({
   subsets: ["latin"],
-  weight: "400",
-  variable: "--font-display",
+  variable: "--font-onest",
 });
 
-const sans = Plus_Jakarta_Sans({
+const display = Schibsted_Grotesk({
   subsets: ["latin"],
-  variable: "--font-sans",
+  variable: "--font-schibsted",
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-plex-mono",
 });
 
 export const metadata: Metadata = {
@@ -26,7 +31,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${display.variable} ${sans.variable}`}>{children}</body>
+      <body className={`${sans.variable} ${display.variable} ${mono.variable}`}>{children}</body>
     </html>
   );
 }

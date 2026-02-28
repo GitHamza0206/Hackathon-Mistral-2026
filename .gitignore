@@ -1,4 +1,6 @@
 .next
+.next-webpack-pass
+.next-prev-build
 node_modules
 .env
 .env.local

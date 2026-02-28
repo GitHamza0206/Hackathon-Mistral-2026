@@ -2,7 +2,20 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { startTransition, useState } from "react";
+import { startTransition, useMemo, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Textarea } from "@/components/ui/textarea";
 import {
   splitFocusAreas,
   targetSeniorities,
@@ -47,6 +60,19 @@ export function AdminConsole({
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [created, setCreated] = useState<CreateRoleResponse | null>(null);
+
+  const candidateMetrics = useMemo(() => {
+    const scored = recentSessions.filter((session) => session.status === "scored").length;
+    const inProgress = recentSessions.filter((session) =>
+      ["profile_submitted", "agent_ready", "in_progress"].includes(session.status),
+    ).length;
+
+    return {
+      total: recentSessions.length,
+      scored,
+      inProgress,
+    };
+  }, [recentSessions]);
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -125,270 +151,490 @@ export function AdminConsole({
     }
   };
 
-  return (
-    <main className="app-shell">
-      <section className="hero-block">
-        <div className="hero-copy">
-          <p className="eyebrow">Admin control room</p>
-          <h1>Publish a role-aware AI engineer screener.</h1>
-          <p className="lede">
-            Upload the hiring requirement once, generate a reusable candidate link, and let each
-            applicant bring their own CV, optional cover letter, and public GitHub profile into the voice
-            interview.
-          </p>
-        </div>
-
-        <div className="hero-badges">
-          <span>Role templates</span>
-          <span>PDF ingestion</span>
-          <span>Candidate-specific sessions</span>
-        </div>
-      </section>
-
-      {!isAuthed ? (
-        <section className="panel auth-panel">
-          <div>
-            <p className="section-label">Admin auth</p>
-            <h2>Unlock the hiring workspace.</h2>
-            <p className="section-copy">
-              The shared passcode protects role templates, candidate sessions, transcripts, and
-              scorecards.
-            </p>
-          </div>
-
-          <form className="auth-form" onSubmit={handleLogin}>
-            <label className="field">
-              <span>Admin passcode</span>
-              <input
-                type="password"
-                value={passcode}
-                onChange={(event) => setPasscode(event.target.value)}
-                placeholder="Enter the shared passcode"
-                autoComplete="current-password"
-              />
-            </label>
-
-            {authError ? <p className="error-text">{authError}</p> : null}
-
-            <button className="primary-button" type="submit" disabled={authLoading}>
-              {authLoading ? "Checking..." : "Enter workspace"}
-            </button>
-          </form>
-        </section>
-      ) : (
-        <div className="dashboard-grid">
-          <section className="panel form-panel">
-            <div className="panel-heading">
-              <div>
-                <p className="section-label">Create role template</p>
-                <h2>Upload the hiring requirement.</h2>
+  if (!isAuthed) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-6xl items-center px-4 py-10 sm:px-6 lg:px-8">
+        <div className="grid w-full gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+          <Card className="overflow-hidden">
+            <CardHeader className="gap-4">
+              <Badge variant="orange" className="w-fit">
+                Admin workspace
+              </Badge>
+              <div className="space-y-3">
+                <CardTitle className="max-w-xl text-4xl font-extrabold tracking-[-0.045em] sm:text-5xl">
+                  Manage interviewer flows and candidate outcomes from one console.
+                </CardTitle>
+                <CardDescription className="max-w-2xl text-base">
+                  The redesign introduces a persistent left navigation with two core views:
+                  interviewer workflows and candidate results.
+                </CardDescription>
               </div>
-              <span className="status-pill">Authenticated</span>
+            </CardHeader>
+            <CardContent className="grid gap-4 sm:grid-cols-3">
+              <WorkspaceMetric label="Interviews" value="Role templates" />
+              <WorkspaceMetric label="Candidates" value="Scored sessions" />
+              <WorkspaceMetric label="Mode" value="Light CERNO" />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Unlock workspace</CardTitle>
+              <CardDescription>
+                The shared passcode protects interviewer setup, candidate records, transcripts, and
+                scorecards.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form className="grid gap-4" onSubmit={handleLogin}>
+                <div className="grid gap-2">
+                  <label className="text-sm font-medium text-foreground">Admin passcode</label>
+                  <Input
+                    type="password"
+                    value={passcode}
+                    onChange={(event) => setPasscode(event.target.value)}
+                    placeholder="Enter the shared passcode"
+                    autoComplete="current-password"
+                  />
+                </div>
+
+                {authError ? <p className="text-sm text-destructive">{authError}</p> : null}
+
+                <Button type="submit" disabled={authLoading}>
+                  {authLoading ? "Checking..." : "Enter workspace"}
+                </Button>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </main>
+    );
+  }
+
+  return (
+    <main className="mx-auto flex w-full max-w-7xl gap-6 px-4 py-6 sm:px-6 lg:px-8">
+      <aside className="sticky top-6 hidden h-[calc(100vh-3rem)] w-72 shrink-0 lg:block">
+        <Card className="flex h-full flex-col">
+          <CardHeader className="gap-4 border-b border-border/70">
+            <div className="space-y-2">
+              <Badge variant="orange" className="w-fit">
+                Hiring workspace
+              </Badge>
+              <CardTitle className="text-2xl font-extrabold tracking-[-0.04em]">
+                CERNO screener
+              </CardTitle>
+              <CardDescription>
+                Interviewer tools on one side. Candidate outcomes on the other.
+              </CardDescription>
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex flex-1 flex-col gap-6 py-6">
+            <nav className="grid gap-2">
+              <SidebarLink href="#interviews" label="Interviews" description="Interviewer section" />
+              <SidebarLink href="#candidates" label="Candidates" description="Interview outcomes" />
+            </nav>
+
+            <div className="grid gap-3">
+              <SidebarStat label="Templates" value={String(recentRoles.length)} />
+              <SidebarStat label="Candidates" value={String(candidateMetrics.total)} />
+              <SidebarStat label="Scored" value={String(candidateMetrics.scored)} />
             </div>
 
-            <form className="setup-form" onSubmit={handleCreate}>
-              <div className="field-grid">
-                <label className="field">
-                  <span>Role title</span>
-                  <input
-                    value={form.roleTitle}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, roleTitle: event.target.value }))
-                    }
-                    placeholder="Senior AI Engineer"
-                  />
-                  {errors.roleTitle ? <small>{errors.roleTitle}</small> : null}
-                </label>
+            <div className="mt-auto rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-muted/30 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">
+                Current direction
+              </p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Light-first workspace, shadcn components, CERNO indigo-violet accents.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </aside>
 
-                <label className="field">
-                  <span>Target seniority</span>
-                  <select
-                    value={form.targetSeniority}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, targetSeniority: event.target.value }))
-                    }
-                  >
-                    {targetSeniorities.map((item) => (
-                      <option key={item} value={item}>
-                        {item}
-                      </option>
-                    ))}
-                  </select>
-                  {errors.targetSeniority ? <small>{errors.targetSeniority}</small> : null}
-                </label>
-
-                <label className="field">
-                  <span>Interview length (minutes)</span>
-                  <input
-                    type="number"
-                    min={10}
-                    max={90}
-                    value={form.durationMinutes}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, durationMinutes: event.target.value }))
-                    }
-                  />
-                  {errors.durationMinutes ? <small>{errors.durationMinutes}</small> : null}
-                </label>
-
-                <label className="field">
-                  <span>Company name</span>
-                  <input
-                    value={form.companyName}
-                    onChange={(event) =>
-                      setForm((current) => ({ ...current, companyName: event.target.value }))
-                    }
-                    placeholder="Acme AI"
-                  />
-                </label>
+      <div className="min-w-0 flex-1 space-y-6">
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <Card className="overflow-hidden">
+            <CardHeader className="gap-4">
+              <div className="flex flex-wrap items-center gap-3">
+                <Badge variant="orange">Interviewer workspace</Badge>
+                <Badge variant="subtle">Authenticated</Badge>
               </div>
+              <div className="space-y-3">
+                <CardTitle className="max-w-3xl text-4xl font-extrabold tracking-[-0.045em] sm:text-5xl">
+                  Build interviews on the left. Review candidate outcomes on the right.
+                </CardTitle>
+                <CardDescription className="max-w-2xl text-base">
+                  This admin surface is now organized around two core jobs: publishing reusable
+                  interviewer flows and tracking which candidates actually completed them.
+                </CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
 
-              <label className="field">
-                <span>Focus areas</span>
-                <textarea
-                  value={form.focusAreas}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, focusAreas: event.target.value }))
-                  }
-                  rows={4}
-                  placeholder={"LLM systems\nRAG evals\nDebugging\nSystem design"}
-                />
-                {errors.focusAreas ? <small>{errors.focusAreas}</small> : null}
-              </label>
+          <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+            <WorkspaceMetric label="Published interviews" value={String(recentRoles.length)} />
+            <WorkspaceMetric label="Candidate runs" value={String(candidateMetrics.total)} />
+            <WorkspaceMetric label="Active now" value={String(candidateMetrics.inProgress)} />
+          </div>
+        </section>
 
-              <label className="field">
-                <span>Internal hiring notes</span>
-                <textarea
-                  value={form.adminNotes}
-                  onChange={(event) =>
-                    setForm((current) => ({ ...current, adminNotes: event.target.value }))
-                  }
-                  rows={5}
-                  placeholder="Optional notes for the screener, such as must-have experience or areas to probe."
-                />
-              </label>
-
-              <label className="field">
-                <span>Job description PDF</span>
-                <input
-                  type="file"
-                  accept="application/pdf,.pdf"
-                  onChange={(event) =>
-                    setForm((current) => ({
-                      ...current,
-                      jobDescriptionPdf: event.target.files?.[0] ?? null,
-                    }))
-                  }
-                />
-                <p className="fine-print">
-                  Upload the company requirement as a PDF. The candidate will not upload this.
-                </p>
-                {errors.jobDescriptionPdf ? <small>{errors.jobDescriptionPdf}</small> : null}
-              </label>
-
-              {submitError ? <p className="error-text">{submitError}</p> : null}
-
-              <button className="primary-button" type="submit" disabled={submitting}>
-                {submitting ? "Creating role..." : "Create reusable role link"}
-              </button>
-            </form>
-          </section>
-
-          <aside className="stack-column">
-            <section className="panel">
-              <div className="panel-heading">
+        <section className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]" id="interviews">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="section-label">Candidate link</p>
-                  <h2>Reusable apply URL</h2>
+                  <CardTitle>Interviews</CardTitle>
+                  <CardDescription>
+                    Create and publish the interviewer flow for a new role.
+                  </CardDescription>
                 </div>
+                <Badge variant="orange">Interviewer section</Badge>
               </div>
+            </CardHeader>
+            <CardContent>
+              <form className="grid gap-5" onSubmit={handleCreate}>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="Role title" error={errors.roleTitle}>
+                    <Input
+                      value={form.roleTitle}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, roleTitle: event.target.value }))
+                      }
+                      placeholder="Senior AI Engineer"
+                    />
+                  </Field>
 
-              {created ? (
-                <div className="launch-card">
-                  <div className="launch-meta">
-                    <span className="status-pill">{created.status}</span>
-                    <code>{created.roleId}</code>
-                  </div>
-                  <p className="launch-link">{created.candidateApplyUrl}</p>
-                  <div className="action-row">
-                    <button
-                      className="secondary-button"
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(created.candidateApplyUrl)}
+                  <Field label="Target seniority" error={errors.targetSeniority}>
+                    <select
+                      className="flex h-12 w-full rounded-[calc(var(--radius)+0.15rem)] border border-input bg-input/50 px-4 py-3 text-sm text-foreground shadow-sm outline-none transition-[border-color,box-shadow,transform] focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/15 focus-visible:-translate-y-px"
+                      value={form.targetSeniority}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, targetSeniority: event.target.value }))
+                      }
                     >
-                      Copy apply URL
-                    </button>
-                    <Link className="secondary-button" href={created.candidateApplyUrl}>
-                      Open candidate page
-                    </Link>
-                  </div>
-                </div>
-              ) : (
-                <p className="section-copy">
-                  Create a role template to generate a reusable candidate apply link.
-                </p>
-              )}
-            </section>
+                      {targetSeniorities.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
 
-            <section className="panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="section-label">Recent roles</p>
-                  <h2>Published templates</h2>
-                </div>
-              </div>
+                  <Field label="Interview length (minutes)" error={errors.durationMinutes}>
+                    <Input
+                      type="number"
+                      min={10}
+                      max={90}
+                      value={form.durationMinutes}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, durationMinutes: event.target.value }))
+                      }
+                    />
+                  </Field>
 
-              <div className="recent-list">
+                  <Field label="Company name">
+                    <Input
+                      value={form.companyName}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, companyName: event.target.value }))
+                      }
+                      placeholder="Acme AI"
+                    />
+                  </Field>
+                </div>
+
+                <Field label="Focus areas" error={errors.focusAreas}>
+                  <Textarea
+                    rows={4}
+                    value={form.focusAreas}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, focusAreas: event.target.value }))
+                    }
+                    placeholder={"LLM systems\nRAG evals\nDebugging\nSystem design"}
+                  />
+                </Field>
+
+                <Field label="Internal hiring notes">
+                  <Textarea
+                    rows={5}
+                    value={form.adminNotes}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, adminNotes: event.target.value }))
+                    }
+                    placeholder="Optional notes for the screener, such as must-have experience or areas to probe."
+                  />
+                </Field>
+
+                <Field label="Job description PDF" error={errors.jobDescriptionPdf}>
+                  <Input
+                    type="file"
+                    accept="application/pdf,.pdf"
+                    onChange={(event) =>
+                      setForm((current) => ({
+                        ...current,
+                        jobDescriptionPdf: event.target.files?.[0] ?? null,
+                      }))
+                    }
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Upload the company requirement once. Candidates do not upload this file.
+                  </p>
+                </Field>
+
+                {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+
+                <div className="flex flex-wrap gap-3">
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Creating interview..." : "Create interview link"}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setForm(defaultForm)}
+                    disabled={submitting}
+                  >
+                    Reset
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+
+          <div className="grid gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Latest interview link</CardTitle>
+                <CardDescription>
+                  The most recent interviewer flow generated from this workspace.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                {created ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <Badge variant="orange">{created.status}</Badge>
+                      <code>{created.roleId}</code>
+                    </div>
+                    <div className="rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-muted/30 p-4 font-mono text-sm text-foreground">
+                      {created.candidateApplyUrl}
+                    </div>
+                    <div className="flex flex-wrap gap-3">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => navigator.clipboard.writeText(created.candidateApplyUrl)}
+                      >
+                        Copy apply URL
+                      </Button>
+                      <Button asChild variant="outline">
+                        <Link href={created.candidateApplyUrl}>Open candidate page</Link>
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    Create an interview to generate a reusable candidate application link.
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Published interviews</CardTitle>
+                <CardDescription>
+                  Reusable interviewer templates already available to candidates.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-3">
                 {recentRoles.length > 0 ? (
                   recentRoles.map((role) => (
-                    <article className="recent-card" key={role.id}>
-                      <div>
-                        <strong>{role.roleTitle}</strong>
-                        <p>
+                    <div
+                      className="flex items-center justify-between gap-4 rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-muted/25 p-4"
+                      key={role.id}
+                    >
+                      <div className="space-y-1">
+                        <p className="font-semibold text-foreground">{role.roleTitle}</p>
+                        <p className="text-sm text-muted-foreground">
                           {role.companyName ? `${role.companyName} · ` : ""}
                           {role.targetSeniority}
                         </p>
                       </div>
-                      <span className="status-pill subtle">{role.status}</span>
-                    </article>
+                      <Badge variant="subtle">{role.status}</Badge>
+                    </div>
                   ))
                 ) : (
-                  <p className="section-copy">No role templates stored yet.</p>
+                  <p className="text-sm leading-6 text-muted-foreground">
+                    No interview templates stored yet.
+                  </p>
                 )}
-              </div>
-            </section>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
 
-            <section className="panel">
-              <div className="panel-heading">
+        <section id="candidates">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p className="section-label">Recent sessions</p>
-                  <h2>Candidate interviews</h2>
+                  <CardTitle>Candidates</CardTitle>
+                  <CardDescription>
+                    Candidates who entered or completed an interview flow.
+                  </CardDescription>
                 </div>
+                <Badge variant="subtle">Interview outcomes</Badge>
               </div>
-
-              <div className="recent-list">
-                {recentSessions.length > 0 ? (
-                  recentSessions.map((session) => (
-                    <Link
-                      className="recent-card"
-                      href={`/admin/sessions/${session.id}`}
-                      key={session.id}
-                    >
-                      <div>
-                        <strong>{session.candidateProfile.candidateName}</strong>
-                        <p>{session.roleSnapshot.roleTitle}</p>
-                      </div>
-                      <span className="status-pill subtle">{session.status}</span>
-                    </Link>
-                  ))
-                ) : (
-                  <p className="section-copy">No candidate sessions yet.</p>
-                )}
-              </div>
-            </section>
-          </aside>
-        </div>
-      )}
+            </CardHeader>
+            <CardContent>
+              {recentSessions.length > 0 ? (
+                <div className="overflow-hidden rounded-[calc(var(--radius)+0.15rem)] border border-border/70">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Candidate</TableHead>
+                        <TableHead>Interview</TableHead>
+                        <TableHead>Status</TableHead>
+                        <TableHead>Submitted</TableHead>
+                        <TableHead>Score</TableHead>
+                        <TableHead className="text-right">Review</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {recentSessions.map((session) => (
+                        <TableRow key={session.id}>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">
+                                {session.candidateProfile.candidateName}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {session.candidateProfile.githubUrl.replace("https://github.com/", "@")}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="space-y-1">
+                              <p className="font-medium text-foreground">
+                                {session.roleSnapshot.roleTitle}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {session.roleSnapshot.targetSeniority}
+                              </p>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={session.status === "scored" ? "orange" : "subtle"}>
+                              {formatStatus(session.status)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground">
+                            {formatDate(session.createdAt)}
+                          </TableCell>
+                          <TableCell>
+                            {typeof session.scorecard?.overallScore === "number" ? (
+                              <span className="font-mono text-sm text-foreground">
+                                {session.scorecard.overallScore.toFixed(1)}
+                              </span>
+                            ) : (
+                              <span className="text-sm text-muted-foreground">Pending</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button asChild size="sm" variant="ghost">
+                              <Link href={`/admin/sessions/${session.id}`}>Open</Link>
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              ) : (
+                <p className="text-sm leading-6 text-muted-foreground">
+                  No candidates have started an interview yet.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      </div>
     </main>
   );
+}
+
+function WorkspaceMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <Card>
+      <CardContent className="p-5">
+        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{label}</p>
+        <p className="mt-3 text-2xl font-extrabold tracking-[-0.04em] text-foreground">{value}</p>
+      </CardContent>
+    </Card>
+  );
+}
+
+function SidebarLink({
+  href,
+  label,
+  description,
+}: {
+  href: string;
+  label: string;
+  description: string;
+}) {
+  return (
+    <a
+      className="rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-muted/20 px-4 py-3 transition-colors hover:bg-accent hover:text-accent-foreground"
+      href={href}
+    >
+      <p className="font-semibold text-foreground">{label}</p>
+      <p className="mt-1 text-sm text-muted-foreground">{description}</p>
+    </a>
+  );
+}
+
+function SidebarStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-muted/20 px-4 py-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">{label}</p>
+      <p className="mt-2 text-xl font-bold tracking-[-0.03em] text-foreground">{value}</p>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="grid gap-2">
+      <label className="text-sm font-medium text-foreground">{label}</label>
+      {children}
+      {error ? <p className="text-sm text-destructive">{error}</p> : null}
+    </div>
+  );
+}
+
+function formatDate(value: string) {
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }).format(new Date(value));
+  } catch {
+    return value;
+  }
+}
+
+function formatStatus(status: CandidateSessionRecord["status"]) {
+  return status.replace(/_/g, " ");
 }
