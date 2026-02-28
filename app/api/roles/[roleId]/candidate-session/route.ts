@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCandidateSessionAgent } from "@/lib/elevenlabs";
 import { getAppBaseUrl } from "@/lib/env";
+import { fetchGitHubRepos } from "@/lib/github";
 import {
   createCandidateSessionId,
   createRoleSnapshot,
@@ -9,6 +10,7 @@ import {
   type CandidateSessionRecord,
 } from "@/lib/interviews";
 import { parseUploadedPdf } from "@/lib/pdf";
+import { generateInterviewStrategy } from "@/lib/preprocess";
 import { buildCandidateSubmissionFromForm } from "@/lib/prompt";
 import { getRoleTemplate, saveCandidateSession, updateCandidateSession } from "@/lib/storage";
 
@@ -61,12 +63,15 @@ export async function POST(request: NextRequest, context: RouteContext) {
       ? await parseUploadedPdf(coverLetterFile, "Cover letter PDF")
       : null;
 
+    const repos = await fetchGitHubRepos(payload.data.githubUrl);
+
     const candidateProfile: CandidateProfileRecord = {
       ...payload.data,
       cvFileName: cvParsed.fileName,
       cvText: cvParsed.text,
       coverLetterFileName: coverLetterParsed?.fileName,
       coverLetterText: coverLetterParsed?.text,
+      githubRepos: repos.length > 0 ? repos : undefined,
     };
 
     const sessionId = createCandidateSessionId();
@@ -81,7 +86,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     await saveCandidateSession(baseSession);
 
-    const agentId = await createCandidateSessionAgent(baseSession);
+    let enrichedSession = baseSession;
+    try {
+      const strategy = await generateInterviewStrategy(baseSession, repos);
+      enrichedSession = { ...baseSession, interviewStrategy: strategy };
+      await updateCandidateSession(sessionId, (current) => ({
+        ...current,
+        interviewStrategy: strategy,
+      }));
+    } catch (error) {
+      console.warn("Preprocessing failed, continuing without interview strategy:", error);
+    }
+
+    const agentId = await createCandidateSessionAgent(enrichedSession);
 
     await updateCandidateSession(sessionId, (current) => ({
       ...current,
