@@ -89,10 +89,26 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     try {
       setError("");
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      const id = await conversation.startSession({
-        agentId: bootstrap.agentId,
-        connectionType: "webrtc",
-      });
+      let id: string;
+
+      try {
+        id = await conversation.startSession({
+          agentId: bootstrap.agentId,
+          connectionType: "webrtc",
+        });
+      } catch (webrtcError) {
+        const message =
+          webrtcError instanceof Error ? webrtcError.message : String(webrtcError ?? "");
+
+        if (!message.toLowerCase().includes("token")) {
+          throw webrtcError;
+        }
+
+        id = await conversation.startSession({
+          agentId: bootstrap.agentId,
+          connectionType: "websocket",
+        });
+      }
 
       setConversationId(id);
       conversationIdRef.current = id;

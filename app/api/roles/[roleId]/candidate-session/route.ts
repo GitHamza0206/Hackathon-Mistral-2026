@@ -31,15 +31,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const cvPdf = formData.get("cvPdf");
   const coverLetterPdf = formData.get("coverLetterPdf");
   const fieldErrors: Record<string, string> = {};
+  const cvFile = normalizeOptionalPdfField(cvPdf);
+  const coverLetterFile = normalizeOptionalPdfField(coverLetterPdf);
 
-  if (!(cvPdf instanceof File)) {
+  if (!cvFile) {
     fieldErrors.cvPdf = "Upload your CV as a PDF.";
   }
 
-  if (
-    coverLetterPdf !== null &&
-    !(coverLetterPdf instanceof File && coverLetterPdf.size > 0)
-  ) {
+  if (hasProvidedValue(coverLetterPdf) && !coverLetterFile) {
     fieldErrors.coverLetterPdf = "If provided, the cover letter must be a PDF.";
   }
 
@@ -57,9 +56,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const cvParsed = await parseUploadedPdf(cvPdf as File, "CV PDF");
-    const coverLetterFile =
-      coverLetterPdf instanceof File && coverLetterPdf.size > 0 ? coverLetterPdf : null;
+    const cvParsed = await parseUploadedPdf(cvFile as File, "CV PDF");
     const coverLetterParsed = coverLetterFile
       ? await parseUploadedPdf(coverLetterFile, "Cover letter PDF")
       : null;
@@ -109,4 +106,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
       { status: 500 },
     );
   }
+}
+
+function normalizeOptionalPdfField(value: FormDataEntryValue | null) {
+  if (value instanceof File) {
+    return value.size > 0 ? value : null;
+  }
+
+  return null;
+}
+
+function hasProvidedValue(value: FormDataEntryValue | null) {
+  if (value instanceof File) {
+    return value.size > 0;
+  }
+
+  return typeof value === "string" ? value.trim().length > 0 : false;
 }
