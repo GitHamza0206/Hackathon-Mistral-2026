@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Support Agent | ElevenLabs Voice Concierge</title>
+    <meta
+      name="description"
+      content="Launch a live ElevenLabs conversational support agent with instant voice access, guided assistance, and a polished deployment-ready interface."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="https://elevenlabs.io/convai-widget/index.js" async></script>
+  </head>
+  <body>
+    <div class="page-shell">
+      <div class="orb orb-left" aria-hidden="true"></div>
+      <div class="orb orb-right" aria-hidden="true"></div>
+
+      <header class="topbar">
+        <div class="brand-lockup">
+          <span class="brand-dot"></span>
+          <span class="eyebrow">ElevenLabs conversational deployment</span>
+        </div>
+        <div class="agent-pill">Support agent</div>
+      </header>
+
+      <main class="hero-grid">
+        <section class="hero-copy">
+          <p class="kicker">Voice-first support</p>
+          <h1>Support that starts talking the moment your customer needs it.</h1>
+          <p class="lede">
+            This page is wired directly to your ElevenLabs agent and ready for static deployment.
+            Open the widget, grant microphone access, and start a live support conversation.
+          </p>
+
+          <div class="hero-actions">
+            <a href="#launch" class="primary-link">Launch the agent</a>
+            <a
+              href="https://elevenlabs.io/docs/eleven-agents"
+              class="secondary-link"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Read docs
+            </a>
+          </div>
+
+          <dl class="spec-grid">
+            <div class="spec-card">
+              <dt>Agent ID</dt>
+              <dd>agent_2901kjhztrbmezq94c2dqnppp8mh</dd>
+            </div>
+            <div class="spec-card">
+              <dt>Mode</dt>
+              <dd>Embeddable widget via CDN</dd>
+            </div>
+            <div class="spec-card">
+              <dt>Hosting</dt>
+              <dd>Any static platform</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="hero-panel" id="launch">
+          <div class="panel-frame">
+            <div class="panel-header">
+              <span class="panel-label">Live console</span>
+              <span class="panel-status">Ready</span>
+            </div>
+
+            <div class="widget-wrap">
+              <elevenlabs-convai
+                agent-id="agent_2901kjhztrbmezq94c2dqnppp8mh"
+              ></elevenlabs-convai>
+            </div>
+
+            <ul class="notes">
+              <li>Use a secure origin in production so microphone access works reliably.</li>
+              <li>The widget handles the live conversation flow and audio transport.</li>
+              <li>Swap to the React or WebRTC SDK later if you need deeper UI control.</li>
+            </ul>
+          </div>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
