@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 400" width="800" height="400">
+  <defs>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366F1"/>
+      <stop offset="50%" style="stop-color:#8B5CF6"/>
+      <stop offset="100%" style="stop-color:#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="wave" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366F1"/>
+      <stop offset="100%" style="stop-color:#A78BFA"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366F1;stop-opacity:0.9"/>
+      <stop offset="100%" style="stop-color:#A78BFA;stop-opacity:0.6"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+      <feMerge>
+        <feMergeNode in="coloredBlur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background -->
+  <rect width="800" height="400" fill="#0F0F14" rx="20"/>
+
+  <!-- Icon: Abstract voice/perception mark -->
+  <g transform="translate(160, 200)">
+    <!-- Outer ring - perception/lens -->
+    <circle cx="0" cy="0" r="72" fill="none" stroke="url(#ring)" stroke-width="3" opacity="0.35"/>
+    <circle cx="0" cy="0" r="56" fill="none" stroke="url(#ring)" stroke-width="2.5" opacity="0.5"/>
+    
+    <!-- Sound wave bars forming a "C" shape -->
+    <g filter="url(#glow)">
+      <!-- Left arc of bars suggesting both "C" and voice waves -->
+      <rect x="-8" y="-38" width="5" height="76" rx="2.5" fill="url(#wave)" opacity="0.95">
+        <animate attributeName="height" values="76;60;76" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="-38;-30;-38" dur="2s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="-22" y="-28" width="5" height="56" rx="2.5" fill="url(#wave)" opacity="0.85">
+        <animate attributeName="height" values="56;40;56" dur="1.8s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="-28;-20;-28" dur="1.8s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="-36" y="-18" width="5" height="36" rx="2.5" fill="url(#wave)" opacity="0.7">
+        <animate attributeName="height" values="36;24;36" dur="2.2s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="-18;-12;-18" dur="2.2s" repeatCount="indefinite"/>
+      </rect>
+      
+      <!-- Center dot - the "eye" / core -->
+      <circle cx="7" cy="0" r="5" fill="url(#accent)"/>
+      
+      <!-- Right bars -->
+      <rect x="18" y="-28" width="5" height="56" rx="2.5" fill="url(#wave)" opacity="0.85">
+        <animate attributeName="height" values="56;42;56" dur="1.6s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="-28;-21;-28" dur="1.6s" repeatCount="indefinite"/>
+      </rect>
+      <rect x="32" y="-18" width="5" height="36" rx="2.5" fill="url(#wave)" opacity="0.7">
+        <animate attributeName="height" values="36;22;36" dur="2s" repeatCount="indefinite"/>
+        <animate attributeName="y" values="-18;-11;-18" dur="2s" repeatCount="indefinite"/>
+      </rect>
+    </g>
+  </g>
+
+  <!-- Wordmark: CERNO -->
+  <g transform="translate(270, 218)">
+    <text font-family="'SF Pro Display', 'Helvetica Neue', 'Segoe UI', sans-serif" 
+          font-size="72" font-weight="300" letter-spacing="14" fill="#EFEFEF">
+      CERNO
+    </text>
+  </g>
+
+
+</svg>
