@@ -11,6 +11,7 @@ export const metadata: Metadata = {
     "Candidate intake page for role-aware AI engineering screening interviews powered by ElevenLabs.",
 };
 
+
 export default async function ApplyPage({ params }: ApplyPageProps) {
   const { roleId } = await params;
   return <CandidateApply roleId={roleId} />;

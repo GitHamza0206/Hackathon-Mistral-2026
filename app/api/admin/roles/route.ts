@@ -20,7 +20,8 @@ export async function POST(request: NextRequest) {
   const formData = await request.formData();
   const jobDescriptionPdf = formData.get("jobDescriptionPdf");
   const submittedJobDescriptionText = String(formData.get("jobDescriptionText") ?? "").trim();
-  const submittedJobDescriptionFileName = String(formData.get("jobDescriptionFileName") ?? "").trim();
+  const submittedJobDescriptionFileName =
+    String(formData.get("jobDescriptionFileName") ?? "").trim() || "manual-job-description.txt";
   const payload = validateRoleTemplateInput({
     roleTitle: formData.get("roleTitle"),
     targetSeniority: formData.get("targetSeniority"),
@@ -32,12 +33,15 @@ export async function POST(request: NextRequest) {
 
   if (
     !(jobDescriptionPdf instanceof File) &&
-    !(hasReadablePdfText(submittedJobDescriptionText) && submittedJobDescriptionFileName)
+    !hasReadablePdfText(submittedJobDescriptionText)
   ) {
     return NextResponse.json(
       {
-        error: "Job description PDF is required.",
-        fieldErrors: { jobDescriptionPdf: "Upload the company job description as a PDF." },
+        error: "Job description is required.",
+        fieldErrors: {
+          jobDescriptionPdf: "Upload a job description PDF or add the job description text.",
+          jobDescriptionText: "Upload a job description PDF or add the job description text.",
+        },
       },
       { status: 400 },
     );
@@ -55,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const parsedPdf =
-      hasReadablePdfText(submittedJobDescriptionText) && submittedJobDescriptionFileName
+      hasReadablePdfText(submittedJobDescriptionText)
         ? {
             fileName: submittedJobDescriptionFileName,
             text: submittedJobDescriptionText,
@@ -67,8 +71,11 @@ export async function POST(request: NextRequest) {
     if (!parsedPdf) {
       return NextResponse.json(
         {
-          error: "Job description PDF is required.",
-          fieldErrors: { jobDescriptionPdf: "Upload the company job description as a PDF." },
+          error: "Job description is required.",
+          fieldErrors: {
+            jobDescriptionPdf: "Upload a job description PDF or add the job description text.",
+            jobDescriptionText: "Upload a job description PDF or add the job description text.",
+          },
         },
         { status: 400 },
       );
