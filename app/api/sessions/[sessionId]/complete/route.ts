@@ -44,18 +44,17 @@ export async function POST(request: Request, context: RouteContext) {
 
     transcript = preferSavedTranscript(session.transcript, transcript);
 
-    const completedSession =
-      (await updateCandidateSession(sessionId, (current) => ({
-        ...current,
-        status: "completed",
-        sessionStartedAt: current.sessionStartedAt ?? current.createdAt,
-        sessionEndedAt,
-        conversationId: payload.data?.conversationId ?? current.conversationId,
-        transcript: preferSavedTranscript(current.transcript, transcript),
-        error: undefined,
-      }))) ?? session;
+    await updateCandidateSession(sessionId, (current) => ({
+      ...current,
+      status: "completed",
+      sessionStartedAt: current.sessionStartedAt ?? current.createdAt,
+      sessionEndedAt,
+      conversationId: payload.data?.conversationId ?? current.conversationId,
+      transcript: preferSavedTranscript(current.transcript, transcript),
+      error: undefined,
+    }));
 
-    const scorecard = await scoreCandidateSession(completedSession, transcript);
+    const scorecard = await scoreCandidateSession(transcript);
 
     await updateCandidateSession(sessionId, (current) => ({
       ...current,

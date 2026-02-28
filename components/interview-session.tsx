@@ -3,20 +3,25 @@
 import { useConversation } from "@elevenlabs/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { patchElevenLabsClient } from "@/lib/elevenlabs-client-patch";
 import type { SessionBootstrap, TranscriptEntry } from "@/lib/interviews";
 
 interface InterviewSessionProps {
   sessionId: string;
 }
 
-patchElevenLabsClient();
-
 interface ConversationMessage {
   event_id?: number;
   message?: string;
   role?: "agent" | "user";
   source?: "ai" | "user";
+}
+
+interface ConversationErrorContext {
+  code?: number | string;
+  debugMessage?: string;
+  details?: Record<string, unknown>;
+  errorType?: string;
+  rawEvent?: unknown;
 }
 
 export function InterviewSession({ sessionId }: InterviewSessionProps) {
@@ -60,8 +65,8 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     onDisconnect: () => {
       void finalizeSession();
     },
-    onError: (detail) => {
-      setError(typeof detail === "string" && detail ? detail : "The voice session failed.");
+    onError: (message: string, context?: ConversationErrorContext) => {
+      setError(formatConversationError(message, context));
     },
   });
 
@@ -120,26 +125,14 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     try {
       setError("");
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      let id: string;
-
-      try {
-        id = await conversation.startSession({
-          agentId: bootstrap.agentId,
-          connectionType: "webrtc",
-        });
-      } catch (webrtcError) {
-        const message =
-          webrtcError instanceof Error ? webrtcError.message : String(webrtcError ?? "");
-
-        if (!message.toLowerCase().includes("token")) {
-          throw webrtcError;
-        }
-
-        id = await conversation.startSession({
-          agentId: bootstrap.agentId,
-          connectionType: "websocket",
-        });
+      if (!bootstrap.signedUrl) {
+        throw new Error("Unable to start the interview session.");
       }
+
+      const id = await conversation.startSession({
+        signedUrl: bootstrap.signedUrl,
+        connectionType: "websocket",
+      });
 
       setConversationId(id);
       conversationIdRef.current = id;
@@ -390,7 +383,7 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
                 className="primary-button"
                 type="button"
                 onClick={startInterview}
-                disabled={!bootstrap.agentId || completed || conversation.status === "connected"}
+                disabled={!bootstrap.signedUrl || completed || conversation.status === "connected"}
               >
                 {conversation.status === "connected" ? "Live now" : "Start interview"}
               </button>
@@ -422,25 +415,15 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
             <section className="transcript-panel">
               <div className="panel-heading">
                 <div>
-                  <p className="section-label">Live transcript</p>
-                  <h2>Conversation feed</h2>
+                  <p className="section-label">Interview privacy</p>
+                  <h2>No live transcript on screen</h2>
                 </div>
               </div>
 
-              {transcript.length > 0 ? (
-                <div className="transcript-list">
-                  {transcript.map((entry, index) => (
-                    <article className="transcript-entry" key={`${entry.speaker}-${index}`}>
-                      <span>{entry.speaker === "agent" ? "Interviewer" : "Candidate"}</span>
-                      <p>{entry.text}</p>
-                    </article>
-                  ))}
-                </div>
-              ) : (
-                <p className="section-copy">
-                  Transcript entries appear here once the interview starts.
-                </p>
-              )}
+              <p className="section-copy">
+                Your answers stay off-screen during the interview. We still capture the transcript in
+                the background so the hiring team can review the completed session afterward.
+              </p>
             </section>
 
             <p className="fine-print">
@@ -529,4 +512,22 @@ function formatTimerValue(totalSeconds: number) {
   const seconds = totalSeconds % 60;
 
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function formatConversationError(message: string, context?: ConversationErrorContext) {
+  const cleanMessage = message.trim();
+
+  if (cleanMessage && cleanMessage !== "Server error: Unknown error") {
+    return cleanMessage;
+  }
+
+  if (typeof context?.details?.message === "string" && context.details.message.trim()) {
+    return context.details.message.trim();
+  }
+
+  if (typeof context?.rawEvent === "string" && context.rawEvent.trim()) {
+    return context.rawEvent.trim();
+  }
+
+  return "The voice session failed. Please try starting the interview again.";
 }

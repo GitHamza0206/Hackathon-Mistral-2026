@@ -174,8 +174,8 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
               </label>
 
               <p className="fine-print">
-                Your uploaded materials and interview transcript are used to tailor and evaluate the
-                screening session.
+                Your uploaded materials are used to tailor the screening session. Evaluation is based
+                on the interview transcript only.
               </p>
 
               <button className="primary-button" type="submit" disabled={isCreatingInterview}>

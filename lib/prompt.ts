@@ -17,13 +17,17 @@ export function buildSessionIntro(session: CandidateSessionRecord) {
   return `You are interviewing for ${session.roleSnapshot.roleTitle}. Expect about ${session.roleSnapshot.durationMinutes} minutes focused on ${session.roleSnapshot.focusAreas.join(", ")}.`;
 }
 
-export function buildSessionBootstrap(session: CandidateSessionRecord): SessionBootstrap {
+export function buildSessionBootstrap(
+  session: CandidateSessionRecord,
+  options?: { signedUrl?: string },
+): SessionBootstrap {
   return {
     sessionId: session.id,
     candidateName: session.candidateProfile.candidateName,
     roleTitle: session.roleSnapshot.roleTitle,
     durationMinutes: session.roleSnapshot.durationMinutes,
     agentId: session.agentId ?? "",
+    signedUrl: options?.signedUrl,
     status: session.status,
     intro: buildSessionIntro(session),
     conversationId: session.conversationId,
@@ -336,10 +340,7 @@ export function buildPreprocessingPrompt(
     .join("\n");
 }
 
-export function buildMistralScoringPrompt(
-  session: CandidateSessionRecord,
-  transcript: TranscriptEntry[],
-) {
+export function buildMistralScoringPrompt(transcript: TranscriptEntry[]) {
   const transcriptText = transcript
     .map((entry, index) => `${index + 1}. ${entry.speaker.toUpperCase()}: ${entry.text}`)
     .join("\n");
@@ -365,28 +366,10 @@ export function buildMistralScoringPrompt(
     "",
     "Scoring rubric:",
     "- Score from 0 to 100.",
-    "- Judge the candidate against the hiring requirement, not in isolation.",
-    "- Use the candidate materials only as context; the transcript is the primary evidence.",
+    "- Use only the transcript as evidence.",
+    "- Do not use CVs, cover letters, GitHub profiles, job descriptions, recruiter notes, or any other external context.",
+    "- If something is not supported by the transcript, treat it as unproven.",
     "- Be skeptical of vague or inflated claims.",
-    "",
-    "Role requirement:",
-    `- Role title: ${session.roleSnapshot.roleTitle}`,
-    `- Target seniority: ${session.roleSnapshot.targetSeniority}`,
-    `- Focus areas: ${session.roleSnapshot.focusAreas.join(", ")}`,
-    session.roleSnapshot.companyName ? `- Company: ${session.roleSnapshot.companyName}` : undefined,
-    session.roleSnapshot.adminNotes ? `- Internal hiring notes: ${session.roleSnapshot.adminNotes}` : undefined,
-    `- Job description:\n${clipText(session.roleSnapshot.jobDescriptionText, 6500)}`,
-    "",
-    "Candidate profile:",
-    `- Name: ${session.candidateProfile.candidateName}`,
-    `- GitHub profile URL: ${session.candidateProfile.githubUrl}`,
-    session.candidateProfile.extraNote
-      ? `- Candidate note: ${session.candidateProfile.extraNote}`
-      : undefined,
-    `- CV text:\n${clipText(session.candidateProfile.cvText, 4500)}`,
-    session.candidateProfile.coverLetterText
-      ? `- Cover letter text:\n${clipText(session.candidateProfile.coverLetterText, 3000)}`
-      : "- Cover letter: not provided",
     "",
     "Transcript:",
     transcriptText || "No transcript available.",

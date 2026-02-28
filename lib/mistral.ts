@@ -1,11 +1,6 @@
 import { Mistral } from "@mistralai/mistralai";
 import { getMistralModel, getRequiredEnv } from "@/lib/env";
-import type {
-  CandidateSessionRecord,
-  Scorecard,
-  TargetSeniority,
-  TranscriptEntry,
-} from "@/lib/interviews";
+import type { Scorecard, TargetSeniority, TranscriptEntry } from "@/lib/interviews";
 import { buildMistralScoringPrompt } from "@/lib/prompt";
 
 const recommendationValues = new Set<Scorecard["overallRecommendation"]>([
@@ -22,10 +17,7 @@ function getClient() {
   return new Mistral({ apiKey: getRequiredEnv("MISTRAL_API_KEY") });
 }
 
-export async function scoreCandidateSession(
-  session: CandidateSessionRecord,
-  transcript: TranscriptEntry[],
-) {
+export async function scoreCandidateSession(transcript: TranscriptEntry[]) {
   const response = await getClient().chat.complete({
     model: getMistralModel(),
     responseFormat: { type: "json_object" },
@@ -37,7 +29,7 @@ export async function scoreCandidateSession(
       },
       {
         role: "user",
-        content: buildMistralScoringPrompt(session, transcript),
+        content: buildMistralScoringPrompt(transcript),
       },
     ],
   });
