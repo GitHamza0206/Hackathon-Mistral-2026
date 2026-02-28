@@ -1,6 +1,7 @@
 import type {
   CandidateSessionRecord,
   CandidateSubmissionInput,
+  GitHubRepo,
   RoleTemplateRecord,
   SessionBootstrap,
   TranscriptEntry,
@@ -31,8 +32,9 @@ export function buildSessionBootstrap(session: CandidateSessionRecord): SessionB
 export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
   const role = session.roleSnapshot;
   const candidate = session.candidateProfile;
+  const strategy = session.interviewStrategy;
 
-  return [
+  const base = [
     "You are a candidate-facing AI engineer screener conducting a live technical interview.",
     "",
     "Primary objective:",
@@ -46,16 +48,54 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     role.companyName ? `- Company: ${role.companyName}` : undefined,
     role.adminNotes ? `- Internal hiring notes: ${role.adminNotes}` : undefined,
     `- Job description:\n${clipText(role.jobDescriptionText, 7000)}`,
-    "",
-    "Candidate-submitted materials:",
-    `- Candidate name: ${candidate.candidateName}`,
-    candidate.candidateEmail ? `- Candidate email: ${candidate.candidateEmail}` : undefined,
-    `- GitHub profile URL: ${candidate.githubUrl}`,
-    candidate.extraNote ? `- Candidate note: ${candidate.extraNote}` : undefined,
-    `- CV text:\n${clipText(candidate.cvText, 5500)}`,
-    candidate.coverLetterText
-      ? `- Cover letter text:\n${clipText(candidate.coverLetterText, 3500)}`
-      : "- Cover letter: not provided",
+  ];
+
+  if (strategy) {
+    const topicLines = strategy.keyTopics.map(
+      (t) => `  - ${t.topic} (${t.depth}): ${t.reason}`,
+    );
+
+    base.push(
+      "",
+      "Pre-interview analysis (use this to guide your questions):",
+      `- Candidate summary: ${strategy.candidateSummary}`,
+      `- Estimated level: ${strategy.estimatedLevel}`,
+      `- Recommended difficulty: ${strategy.recommendedDifficulty}`,
+      `- Interview focus: ${strategy.interviewFocus}`,
+      "",
+      "Key topics to cover:",
+      ...topicLines,
+      "",
+      "Suggested questions (adapt based on conversation flow):",
+      ...strategy.specificQuestions.map((q) => `  - ${q}`),
+      "",
+      "CV claims to verify (probe these during the interview):",
+      ...strategy.cvClaimsToVerify.map((c) => `  - ${c}`),
+    );
+
+    if (strategy.githubInsights.length > 0) {
+      base.push(
+        "",
+        "GitHub insights:",
+        ...strategy.githubInsights.map((g) => `  - ${g}`),
+      );
+    }
+  } else {
+    base.push(
+      "",
+      "Candidate-submitted materials:",
+      `- Candidate name: ${candidate.candidateName}`,
+      candidate.candidateEmail ? `- Candidate email: ${candidate.candidateEmail}` : undefined,
+      `- GitHub profile URL: ${candidate.githubUrl}`,
+      candidate.extraNote ? `- Candidate note: ${candidate.extraNote}` : undefined,
+      `- CV text:\n${clipText(candidate.cvText, 5500)}`,
+      candidate.coverLetterText
+        ? `- Cover letter text:\n${clipText(candidate.coverLetterText, 3500)}`
+        : "- Cover letter: not provided",
+    );
+  }
+
+  base.push(
     "",
     "Interview behavior:",
     "- Ask one question at a time.",
@@ -79,6 +119,67 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     "- Look for alignment with the job requirement, not just general competence.",
     "- Challenge resume and GitHub claims when they sound overstated or underspecified.",
     "- Reward specific production experience, engineering judgment, and ownership.",
+  );
+
+  return base.filter(Boolean).join("\n");
+}
+
+function formatGitHubRepos(repos: GitHubRepo[]): string {
+  if (repos.length === 0) {
+    return "No public repositories available.";
+  }
+
+  return repos
+    .map(
+      (r) =>
+        `- ${r.name}${r.description ? `: ${r.description}` : ""} [${r.language ?? "unknown"}] (${r.stars} stars, ${r.forks} forks)`,
+    )
+    .join("\n");
+}
+
+export function buildPreprocessingPrompt(
+  session: CandidateSessionRecord,
+  repos: GitHubRepo[],
+): string {
+  const role = session.roleSnapshot;
+  const candidate = session.candidateProfile;
+
+  return [
+    "You are an expert technical recruiter preparing an interviewer brief.",
+    "Analyze the following candidate materials against the job requirement and produce a structured interview strategy.",
+    "",
+    "Role requirement:",
+    `- Role title: ${role.roleTitle}`,
+    `- Target seniority: ${role.targetSeniority}`,
+    `- Focus areas: ${role.focusAreas.join(", ")}`,
+    role.companyName ? `- Company: ${role.companyName}` : undefined,
+    role.adminNotes ? `- Internal hiring notes: ${role.adminNotes}` : undefined,
+    `- Job description:\n${clipText(role.jobDescriptionText, 7000)}`,
+    "",
+    "Candidate materials:",
+    `- Candidate name: ${candidate.candidateName}`,
+    `- CV text:\n${clipText(candidate.cvText, 5500)}`,
+    candidate.coverLetterText
+      ? `- Cover letter text:\n${clipText(candidate.coverLetterText, 3500)}`
+      : "- Cover letter: not provided",
+    "",
+    "GitHub repositories:",
+    formatGitHubRepos(repos),
+    "",
+    "Produce a JSON object with the following fields:",
+    "- candidateSummary (string): 2-3 sentence overview of the candidate's profile and fit.",
+    "- estimatedLevel (string): your estimate of the candidate's level, e.g. \"junior\", \"mid\", \"mid-to-senior\", \"senior\", \"staff+\".",
+    "- keyTopics (array of objects): 4-6 topics to focus on during the interview. Each object has:",
+    "  - topic (string): e.g. \"RAG pipeline design\"",
+    "  - reason (string): why this topic matters for this candidate and role",
+    '  - depth ("surface" | "moderate" | "deep"): surface = basic familiarity check, moderate = working knowledge with examples, deep = architecture decisions and tradeoffs',
+    "- specificQuestions (array of strings): 5-8 tailored interview questions based on the candidate's background and the role requirements.",
+    "- cvClaimsToVerify (array of strings): claims from the CV that seem vague, inflated, or need probing during the interview.",
+    "- githubInsights (array of strings): observations from the candidate's GitHub repos that are relevant to the role. If no repos are available, return an empty array.",
+    '- recommendedDifficulty (string): one of "junior", "mid", "senior", "staff+" — the difficulty level the interview should target.',
+    "- interviewFocus (string): a brief paragraph describing the overall interview approach and what the interviewer should prioritize.",
+    "",
+    "Return valid JSON only.",
   ]
     .filter(Boolean)
     .join("\n");

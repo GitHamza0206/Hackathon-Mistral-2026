@@ -12,6 +12,33 @@ export type CandidateSessionStatus =
   | "scored"
   | "failed";
 
+export interface GitHubRepo {
+  name: string;
+  description: string | null;
+  language: string | null;
+  stars: number;
+  forks: number;
+  updatedAt: string;
+  url: string;
+}
+
+export interface InterviewTopic {
+  topic: string;
+  reason: string;
+  depth: "surface" | "moderate" | "deep";
+}
+
+export interface InterviewStrategy {
+  candidateSummary: string;
+  estimatedLevel: string;
+  keyTopics: InterviewTopic[];
+  specificQuestions: string[];
+  cvClaimsToVerify: string[];
+  githubInsights: string[];
+  recommendedDifficulty: string;
+  interviewFocus: string;
+}
+
 export interface RoleTemplateInput {
   roleTitle: string;
   targetSeniority: TargetSeniority;
@@ -42,6 +69,7 @@ export interface CandidateProfileRecord extends CandidateSubmissionInput {
   cvText: string;
   coverLetterFileName?: string;
   coverLetterText?: string;
+  githubRepos?: GitHubRepo[];
 }
 
 export interface CandidateSessionRoleSnapshot {
@@ -86,6 +114,7 @@ export interface CandidateSessionRecord {
   conversationId?: string;
   transcript?: TranscriptEntry[];
   scorecard?: Scorecard;
+  interviewStrategy?: InterviewStrategy;
   error?: string;
 }
 
