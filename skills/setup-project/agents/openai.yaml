@@ -1,0 +1,15 @@
+interface:
+  display_name: "Setup Project"
+  short_description: "Install DeepWiki MCP quickly"
+  default_prompt: "Use $setup-project to install or configure DeepWiki MCP."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "deepwiki"
+      description: "DeepWiki MCP for public GitHub repository docs and grounded repo Q&A"
+      transport: "streamable_http"
+      url: "https://mcp.deepwiki.com/mcp"
+
+policy:
+  allow_implicit_invocation: true
