@@ -448,7 +448,7 @@ export function AdminConsole({
                   Interviews
                 </CardTitle>
                 <CardDescription className="max-w-2xl text-sm">
-                  Create interview links and review candidate activity.
+                  Create interview links and review stored candidate interviews.
                 </CardDescription>
               </div>
             </div>
@@ -517,10 +517,10 @@ export function AdminConsole({
             <Card className="border-border/70 bg-card/88">
               <CardHeader className="gap-4 lg:flex-row lg:items-end lg:justify-between">
                 <div className="space-y-2">
-                  <Badge variant="subtle">Candidate pipeline</Badge>
-                  <CardTitle>Review live interview activity</CardTitle>
+                  <Badge variant="subtle">Candidate archive</Badge>
+                  <CardTitle>Review interviews, transcripts, and scores</CardTitle>
                   <CardDescription>
-                    Switch between the table and kanban views without leaving the shared tab system.
+                    Each completed interview stays available here for admin review.
                   </CardDescription>
                 </div>
 
@@ -1043,6 +1043,8 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
             <TableHead className="font-semibold text-foreground">Candidate</TableHead>
             <TableHead className="font-semibold text-foreground">Interview</TableHead>
             <TableHead className="font-semibold text-foreground">Status</TableHead>
+            <TableHead className="font-semibold text-foreground">Last activity</TableHead>
+            <TableHead className="font-semibold text-foreground">Transcript</TableHead>
             <TableHead className="font-semibold text-foreground">Score</TableHead>
             <TableHead className="text-right font-semibold text-foreground">Review</TableHead>
           </TableRow>
@@ -1070,6 +1072,22 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
                 <StatusBadge status={session.status} />
               </TableCell>
               <TableCell>
+                <span className="font-mono text-xs text-foreground">
+                  {formatTimestamp(
+                    session.sessionEndedAt ?? session.sessionStartedAt ?? session.createdAt,
+                  )}
+                </span>
+              </TableCell>
+              <TableCell>
+                {session.transcript && session.transcript.length > 0 ? (
+                  <span className="font-mono text-sm text-foreground">
+                    {session.transcript.length} lines
+                  </span>
+                ) : (
+                  <span className="text-sm text-muted-foreground">Pending</span>
+                )}
+              </TableCell>
+              <TableCell>
                 {typeof session.scorecard?.overallScore === "number" ? (
                   <span className="font-mono text-sm text-foreground">
                     {session.scorecard.overallScore.toFixed(1)}
@@ -1080,7 +1098,7 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
               </TableCell>
               <TableCell className="text-right">
                 <Button asChild size="sm" variant="outline">
-                  <Link href={`/admin/sessions/${session.id}`}>Open</Link>
+                  <Link href={`/admin/sessions/${session.id}`}>Review</Link>
                 </Button>
               </TableCell>
             </TableRow>
@@ -1136,8 +1154,21 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
                   ) : null}
                 </div>
 
+                <div className="mt-3 grid gap-1 text-xs text-muted-foreground">
+                  <p className="font-mono">
+                    {formatTimestamp(
+                      session.sessionEndedAt ?? session.sessionStartedAt ?? session.createdAt,
+                    )}
+                  </p>
+                  <p>
+                    {session.transcript && session.transcript.length > 0
+                      ? `${session.transcript.length} transcript lines saved`
+                      : "Transcript pending"}
+                  </p>
+                </div>
+
                 <Button asChild size="sm" variant="outline" className="mt-4 w-full">
-                  <Link href={`/admin/sessions/${session.id}`}>Open</Link>
+                  <Link href={`/admin/sessions/${session.id}`}>Review transcript</Link>
                 </Button>
               </div>
             ))}

@@ -108,6 +108,8 @@ export interface CandidateSessionRecord {
   roleId: string;
   createdAt: string;
   status: CandidateSessionStatus;
+  sessionStartedAt?: string;
+  sessionEndedAt?: string;
   roleSnapshot: CandidateSessionRoleSnapshot;
   candidateProfile: CandidateProfileRecord;
   agentId?: string;
@@ -146,6 +148,16 @@ export interface SessionBootstrap {
   agentId: string;
   status: CandidateSessionStatus;
   intro: string;
+  conversationId?: string;
+  transcript?: TranscriptEntry[];
+  sessionStartedAt?: string;
+  sessionEndedAt?: string;
+}
+
+export interface CandidateSessionSyncInput {
+  conversationId?: string;
+  transcript?: TranscriptEntry[];
+  sessionStartedAt?: string;
 }
 
 export interface CandidateSessionCompletionInput {
@@ -301,6 +313,38 @@ export function validateCandidateSessionCompletionInput(
   };
 }
 
+export function validateCandidateSessionSyncInput(
+  payload: unknown,
+): ValidationResult<CandidateSessionSyncInput> {
+  if (!payload || typeof payload !== "object") {
+    return { errors: { form: "Invalid request body." } };
+  }
+
+  const conversationId = readOptionalString(payload, "conversationId");
+  const sessionStartedAt = readOptionalString(payload, "sessionStartedAt");
+  const transcriptRaw = readValue(payload, "transcript");
+  const transcript =
+    Array.isArray(transcriptRaw) && transcriptRaw.every(isTranscriptEntry)
+      ? transcriptRaw
+      : undefined;
+
+  if (!conversationId && !sessionStartedAt && (!transcript || transcript.length === 0)) {
+    return {
+      errors: {
+        form: "Conversation metadata or transcript content is required.",
+      },
+    };
+  }
+
+  return {
+    data: {
+      conversationId,
+      sessionStartedAt,
+      transcript,
+    },
+  };
+}
+
 export function createRoleSnapshot(role: RoleTemplateRecord): CandidateSessionRoleSnapshot {
   return {
     roleTitle: role.roleTitle,
@@ -315,6 +359,24 @@ export function createRoleSnapshot(role: RoleTemplateRecord): CandidateSessionRo
 
 export function clipText(text: string, maxChars: number) {
   return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
+}
+
+export function preferSavedTranscript(
+  current: TranscriptEntry[] | undefined,
+  incoming: TranscriptEntry[] | undefined,
+) {
+  const existingTranscript = current ?? [];
+  const nextTranscript = incoming ?? [];
+
+  if (nextTranscript.length === 0) {
+    return existingTranscript;
+  }
+
+  if (nextTranscript.length < existingTranscript.length) {
+    return existingTranscript;
+  }
+
+  return nextTranscript;
 }
 
 export function isValidGithubProfileUrl(value: string) {

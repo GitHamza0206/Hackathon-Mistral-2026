@@ -26,6 +26,10 @@ export function buildSessionBootstrap(session: CandidateSessionRecord): SessionB
     agentId: session.agentId ?? "",
     status: session.status,
     intro: buildSessionIntro(session),
+    conversationId: session.conversationId,
+    transcript: session.transcript ?? [],
+    sessionStartedAt: session.sessionStartedAt,
+    sessionEndedAt: session.sessionEndedAt,
   };
 }
 

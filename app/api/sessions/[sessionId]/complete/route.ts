@@ -1,7 +1,10 @@
 import { NextResponse } from "next/server";
 import { fetchConversationTranscript } from "@/lib/elevenlabs";
 import { scoreCandidateSession } from "@/lib/mistral";
-import { validateCandidateSessionCompletionInput } from "@/lib/interviews";
+import {
+  preferSavedTranscript,
+  validateCandidateSessionCompletionInput,
+} from "@/lib/interviews";
 import { getCandidateSession, updateCandidateSession } from "@/lib/storage";
 
 interface RouteContext {
@@ -27,6 +30,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     let transcript = payload.data.transcript ?? [];
+    const sessionEndedAt = payload.data.sessionEndedAt ?? new Date().toISOString();
 
     if (payload.data.conversationId) {
       try {
@@ -36,12 +40,16 @@ export async function POST(request: Request, context: RouteContext) {
       }
     }
 
+    transcript = preferSavedTranscript(session.transcript, transcript);
+
     const completedSession =
       (await updateCandidateSession(sessionId, (current) => ({
         ...current,
         status: "completed",
+        sessionStartedAt: current.sessionStartedAt ?? current.createdAt,
+        sessionEndedAt,
         conversationId: payload.data?.conversationId ?? current.conversationId,
-        transcript,
+        transcript: preferSavedTranscript(current.transcript, transcript),
         error: undefined,
       }))) ?? session;
 
@@ -50,8 +58,10 @@ export async function POST(request: Request, context: RouteContext) {
     await updateCandidateSession(sessionId, (current) => ({
       ...current,
       status: "scored",
+      sessionStartedAt: current.sessionStartedAt ?? current.createdAt,
+      sessionEndedAt,
       conversationId: payload.data?.conversationId ?? current.conversationId,
-      transcript,
+      transcript: preferSavedTranscript(current.transcript, transcript),
       scorecard,
       error: undefined,
     }));
@@ -61,8 +71,10 @@ export async function POST(request: Request, context: RouteContext) {
     await updateCandidateSession(sessionId, (current) => ({
       ...current,
       status: "failed",
+      sessionStartedAt: current.sessionStartedAt ?? current.createdAt,
+      sessionEndedAt: payload.data?.sessionEndedAt ?? current.sessionEndedAt,
       conversationId: payload.data?.conversationId ?? current.conversationId,
-      transcript: payload.data?.transcript ?? current.transcript,
+      transcript: preferSavedTranscript(current.transcript, payload.data?.transcript),
       error: error instanceof Error ? error.message : "Scoring failed.",
     }));
 

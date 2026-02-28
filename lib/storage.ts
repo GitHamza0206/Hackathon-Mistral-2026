@@ -18,6 +18,7 @@ function roleSessionsKey(roleId: string) {
 
 const recentRolesKey = "roles:recent";
 const recentSessionsKey = "candidate_sessions:recent";
+const allSessionsKey = "candidate_sessions:all";
 const localStorageFile = path.join(process.cwd(), ".data", "storage.json");
 const localListLimit = 25;
 
@@ -45,6 +46,69 @@ function createEmptySnapshot(): LocalStorageSnapshot {
 
 function prependUniqueId(ids: string[], id: string, limit = localListLimit) {
   return [id, ...ids.filter((existingId) => existingId !== id)].slice(0, limit);
+}
+
+function dedupeIds(ids: string[]) {
+  return [...new Set(ids)];
+}
+
+function getSessionSortTimestamp(record: CandidateSessionRecord) {
+  const candidates = [record.sessionEndedAt, record.sessionStartedAt, record.createdAt];
+
+  for (const value of candidates) {
+    if (!value) {
+      continue;
+    }
+
+    const timestamp = Date.parse(value);
+
+    if (!Number.isNaN(timestamp)) {
+      return timestamp;
+    }
+  }
+
+  return 0;
+}
+
+function sortCandidateSessions(records: CandidateSessionRecord[]) {
+  return [...records].sort((left, right) => {
+    const timestampDifference =
+      getSessionSortTimestamp(right) - getSessionSortTimestamp(left);
+
+    if (timestampDifference !== 0) {
+      return timestampDifference;
+    }
+
+    return right.id.localeCompare(left.id);
+  });
+}
+
+async function listArchivedSessionIdsFromKv(limit?: number) {
+  const rangeEnd = typeof limit === "number" ? Math.max(limit - 1, 0) : -1;
+  const archivedIds = ((await kv.lrange(allSessionsKey, 0, rangeEnd)) ?? []) as string[];
+  const dedupedArchivedIds = dedupeIds(archivedIds);
+
+  if (typeof limit === "number" && dedupedArchivedIds.length >= limit) {
+    return dedupedArchivedIds.slice(0, limit);
+  }
+
+  const scannedIds: string[] = [];
+
+  for await (const key of kv.scanIterator({ match: `${sessionKey("*")}` })) {
+    if (!key.startsWith("candidate_session:")) {
+      continue;
+    }
+
+    scannedIds.push(key.slice("candidate_session:".length));
+  }
+
+  const mergedIds = dedupeIds([...dedupedArchivedIds, ...scannedIds]);
+
+  if (typeof limit === "number") {
+    return mergedIds.slice(0, limit);
+  }
+
+  return mergedIds;
 }
 
 async function readLocalSnapshot() {
@@ -156,6 +220,7 @@ export async function saveCandidateSession(
     if (shouldIndex) {
       await kv.lpush(recentSessionsKey, record.id);
       await kv.ltrim(recentSessionsKey, 0, 24);
+      await kv.lpush(allSessionsKey, record.id);
       await kv.lpush(roleSessionsKey(record.roleId), record.id);
       await kv.ltrim(roleSessionsKey(record.roleId), 0, 24);
     }
@@ -201,18 +266,26 @@ export async function updateCandidateSession(
 }
 
 export async function listRecentCandidateSessions(limit = 6) {
+  return listCandidateSessions(limit);
+}
+
+export async function listCandidateSessions(limit?: number) {
   if (hasKvConfig()) {
-    const ids =
-      ((await kv.lrange(recentSessionsKey, 0, Math.max(limit - 1, 0))) ?? []) as string[];
+    const ids = await listArchivedSessionIdsFromKv(limit);
     const records = await Promise.all(ids.map((id) => getCandidateSession(id)));
 
-    return records.filter((record): record is CandidateSessionRecord => Boolean(record));
+    return sortCandidateSessions(
+      records.filter((record): record is CandidateSessionRecord => Boolean(record)),
+    );
   }
 
   const snapshot = await getLocalSnapshot();
 
-  return snapshot.recentSessionIds
-    .slice(0, limit)
-    .map((id) => snapshot.sessions[id])
-    .filter((record): record is CandidateSessionRecord => Boolean(record));
+  const records = sortCandidateSessions(Object.values(snapshot.sessions));
+
+  if (typeof limit === "number") {
+    return records.slice(0, limit);
+  }
+
+  return records;
 }

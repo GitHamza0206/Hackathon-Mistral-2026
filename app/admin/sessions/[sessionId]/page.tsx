@@ -67,6 +67,22 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
                 <dt>Conversation ID</dt>
                 <dd>{session.conversationId ?? "Pending"}</dd>
               </div>
+              <div>
+                <dt>Created</dt>
+                <dd>{formatTimestamp(session.createdAt)}</dd>
+              </div>
+              <div>
+                <dt>Started</dt>
+                <dd>{formatTimestamp(session.sessionStartedAt)}</dd>
+              </div>
+              <div>
+                <dt>Ended</dt>
+                <dd>{formatTimestamp(session.sessionEndedAt)}</dd>
+              </div>
+              <div>
+                <dt>Transcript entries</dt>
+                <dd>{String(session.transcript?.length ?? 0)}</dd>
+              </div>
             </dl>
             <div className="notes-panel">
               <p className="section-label">Job description snapshot</p>
@@ -215,4 +231,24 @@ function ReviewList({ label, items }: { label: string; items: string[] }) {
       )}
     </div>
   );
+}
+
+function formatTimestamp(value?: string) {
+  if (!value) {
+    return "Not available";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(date.getUTCDate()).padStart(2, "0");
+  const hours = String(date.getUTCHours()).padStart(2, "0");
+  const minutes = String(date.getUTCMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day} ${hours}:${minutes} UTC`;
 }
