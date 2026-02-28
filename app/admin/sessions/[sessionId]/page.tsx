@@ -101,7 +101,7 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
               </div>
               <div>
                 <dt>Cover letter file</dt>
-                <dd>{session.candidateProfile.coverLetterFileName}</dd>
+                <dd>{session.candidateProfile.coverLetterFileName ?? "Not provided"}</dd>
               </div>
             </dl>
             {session.candidateProfile.extraNote ? (
@@ -114,10 +114,12 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
               <p className="section-label">CV text snapshot</p>
               <p>{clipText(session.candidateProfile.cvText, 1500)}</p>
             </div>
-            <div className="notes-panel">
-              <p className="section-label">Cover letter snapshot</p>
-              <p>{clipText(session.candidateProfile.coverLetterText, 1100)}</p>
-            </div>
+            {session.candidateProfile.coverLetterText ? (
+              <div className="notes-panel">
+                <p className="section-label">Cover letter snapshot</p>
+                <p>{clipText(session.candidateProfile.coverLetterText, 1100)}</p>
+              </div>
+            ) : null}
           </section>
         </div>
 

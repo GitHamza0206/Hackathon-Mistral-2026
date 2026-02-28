@@ -35,7 +35,7 @@ Notes:
 ## Routes
 
 - `/` admin role-template creation
-- `/apply/[roleId]` candidate intake form for CV, cover letter, and GitHub profile URL
+- `/apply/[roleId]` candidate intake form for CV, optional cover letter, and GitHub profile URL
 - `/session/[sessionId]` candidate-facing live interview page using `@elevenlabs/react`
 - `/admin/sessions/[sessionId]` admin-only transcript and scorecard view
 
@@ -44,7 +44,7 @@ Notes:
 1. Admin uploads a job-description PDF and creates a reusable role link.
 2. Candidate opens the role link and uploads:
    - CV PDF
-   - cover letter PDF
+   - optional cover letter PDF
    - public GitHub profile URL
 3. Backend parses the PDFs, creates a candidate-specific ElevenLabs agent, and starts a session.
 4. After the call, the transcript is fetched from ElevenLabs and scored with Mistral.

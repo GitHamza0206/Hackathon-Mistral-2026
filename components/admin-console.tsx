@@ -133,7 +133,7 @@ export function AdminConsole({
           <h1>Publish a role-aware AI engineer screener.</h1>
           <p className="lede">
             Upload the hiring requirement once, generate a reusable candidate link, and let each
-            applicant bring their own CV, cover letter, and public GitHub profile into the voice
+            applicant bring their own CV, optional cover letter, and public GitHub profile into the voice
             interview.
           </p>
         </div>

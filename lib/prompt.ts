@@ -9,7 +9,7 @@ import { clipText } from "@/lib/interviews";
 
 export function buildRoleApplyIntro(role: RoleTemplateRecord) {
   const companyPrefix = role.companyName ? `${role.companyName} is hiring for` : "This interview is for";
-  return `${companyPrefix} a ${role.roleTitle} role. Upload your CV, cover letter, and public GitHub profile before the screening begins.`;
+  return `${companyPrefix} a ${role.roleTitle} role. Upload your CV, optionally add a cover letter, and share your public GitHub profile before the screening begins.`;
 }
 
 export function buildSessionIntro(session: CandidateSessionRecord) {
@@ -53,7 +53,9 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     `- GitHub profile URL: ${candidate.githubUrl}`,
     candidate.extraNote ? `- Candidate note: ${candidate.extraNote}` : undefined,
     `- CV text:\n${clipText(candidate.cvText, 5500)}`,
-    `- Cover letter text:\n${clipText(candidate.coverLetterText, 3500)}`,
+    candidate.coverLetterText
+      ? `- Cover letter text:\n${clipText(candidate.coverLetterText, 3500)}`
+      : "- Cover letter: not provided",
     "",
     "Interview behavior:",
     "- Ask one question at a time.",
@@ -130,7 +132,9 @@ export function buildMistralScoringPrompt(
       ? `- Candidate note: ${session.candidateProfile.extraNote}`
       : undefined,
     `- CV text:\n${clipText(session.candidateProfile.cvText, 4500)}`,
-    `- Cover letter text:\n${clipText(session.candidateProfile.coverLetterText, 3000)}`,
+    session.candidateProfile.coverLetterText
+      ? `- Cover letter text:\n${clipText(session.candidateProfile.coverLetterText, 3000)}`
+      : "- Cover letter: not provided",
     "",
     "Transcript:",
     transcriptText || "No transcript available.",

@@ -36,8 +36,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     fieldErrors.cvPdf = "Upload your CV as a PDF.";
   }
 
-  if (!(coverLetterPdf instanceof File)) {
-    fieldErrors.coverLetterPdf = "Upload your cover letter as a PDF.";
+  if (
+    coverLetterPdf !== null &&
+    !(coverLetterPdf instanceof File && coverLetterPdf.size > 0)
+  ) {
+    fieldErrors.coverLetterPdf = "If provided, the cover letter must be a PDF.";
   }
 
   if (!payload.data || Object.keys(fieldErrors).length > 0) {
@@ -54,17 +57,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   try {
-    const [cvParsed, coverLetterParsed] = await Promise.all([
-      parseUploadedPdf(cvPdf as File, "CV PDF"),
-      parseUploadedPdf(coverLetterPdf as File, "Cover letter PDF"),
-    ]);
+    const cvParsed = await parseUploadedPdf(cvPdf as File, "CV PDF");
+    const coverLetterFile =
+      coverLetterPdf instanceof File && coverLetterPdf.size > 0 ? coverLetterPdf : null;
+    const coverLetterParsed = coverLetterFile
+      ? await parseUploadedPdf(coverLetterFile, "Cover letter PDF")
+      : null;
 
     const candidateProfile: CandidateProfileRecord = {
       ...payload.data,
       cvFileName: cvParsed.fileName,
       cvText: cvParsed.text,
-      coverLetterFileName: coverLetterParsed.fileName,
-      coverLetterText: coverLetterParsed.text,
+      coverLetterFileName: coverLetterParsed?.fileName,
+      coverLetterText: coverLetterParsed?.text,
     };
 
     const sessionId = createCandidateSessionId();

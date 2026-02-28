@@ -40,8 +40,8 @@ export interface CandidateSubmissionInput {
 export interface CandidateProfileRecord extends CandidateSubmissionInput {
   cvFileName: string;
   cvText: string;
-  coverLetterFileName: string;
-  coverLetterText: string;
+  coverLetterFileName?: string;
+  coverLetterText?: string;
 }
 
 export interface CandidateSessionRoleSnapshot {

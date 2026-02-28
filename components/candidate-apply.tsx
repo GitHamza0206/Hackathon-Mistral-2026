@@ -152,7 +152,7 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
                 </label>
 
                 <label className="field">
-                  <span>Cover letter PDF</span>
+                  <span>Cover letter PDF (optional)</span>
                   <input name="coverLetterPdf" type="file" accept="application/pdf,.pdf" />
                   {fieldErrors.coverLetterPdf ? <small>{fieldErrors.coverLetterPdf}</small> : null}
                 </label>
