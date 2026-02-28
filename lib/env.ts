@@ -26,3 +26,7 @@ export function getAppBaseUrl(origin?: string) {
 export function getMistralModel() {
   return getOptionalEnv("MISTRAL_MODEL") ?? "mistral-large-latest";
 }
+
+export function getMistralOcrModel() {
+  return getOptionalEnv("MISTRAL_OCR_MODEL") ?? "mistral-ocr-latest";
+}

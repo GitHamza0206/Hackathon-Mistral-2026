@@ -1,4 +1,5 @@
-import { PDFParse } from "pdf-parse";
+import { Mistral } from "@mistralai/mistralai";
+import { getMistralOcrModel, getRequiredEnv } from "@/lib/env";
 
 const maxPdfSizeBytes = 10 * 1024 * 1024;
 const minTextLength = 40;
@@ -21,12 +22,33 @@ export async function parseUploadedPdf(
     throw new Error(`${label} must be 10 MB or smaller.`);
   }
 
-  const data = new Uint8Array(await file.arrayBuffer());
-  const parser = new PDFParse({ data });
+  const client = new Mistral({ apiKey: getRequiredEnv("MISTRAL_API_KEY") });
 
   try {
-    const result = await parser.getText();
-    const text = result.text.replace(/\s+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
+    const content = Buffer.from(await file.arrayBuffer());
+    const uploaded = await client.files.upload({
+      purpose: "ocr",
+      file: {
+        fileName: file.name || "document.pdf",
+        content,
+      },
+    });
+
+    const result = await client.ocr.process({
+      model: getMistralOcrModel(),
+      document: {
+        type: "file",
+        fileId: uploaded.id,
+      },
+    });
+
+    const text = result.pages
+      .map((page) => page.markdown.trim())
+      .filter(Boolean)
+      .join("\n\n")
+      .replace(/\s+\n/g, "\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
 
     if (text.length < minTextLength) {
       throw new Error(`${label} did not contain enough readable text.`);
@@ -36,7 +58,9 @@ export async function parseUploadedPdf(
       fileName: file.name,
       text,
     };
-  } finally {
-    await parser.destroy();
+  } catch (error) {
+    throw new Error(
+      error instanceof Error ? `${label} OCR failed: ${error.message}` : `${label} OCR failed.`,
+    );
   }
 }
