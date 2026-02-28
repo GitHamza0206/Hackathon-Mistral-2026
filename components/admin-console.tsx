@@ -832,6 +832,22 @@ export function AdminConsole({
                 </CardContent>
               </Card>
             </div>
+
+            <Card className="mt-6 border-border/70 bg-card/88">
+              <CardHeader className="gap-3">
+                <div className="space-y-2">
+                  <Badge variant="subtle">Published links</Badge>
+                  <CardTitle>Past interview links</CardTitle>
+                  <CardDescription>
+                    Reopen or copy previously generated candidate interview links to resend them.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <InterviewLinksTable roles={recentRoles} />
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="candidates" className="mt-0">
@@ -1153,6 +1169,70 @@ function SessionsTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
                 <Button asChild size="sm" variant="outline">
                   <Link href={`/admin/sessions/${session.id}`}>Open</Link>
                 </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
+function InterviewLinksTable({ roles }: { roles: RoleTemplateRecord[] }) {
+  if (roles.length === 0) {
+    return <p className="text-sm text-muted-foreground">No interview links created yet.</p>;
+  }
+
+  return (
+    <div className="overflow-auto rounded-[calc(var(--radius)+0.2rem)] border border-border/70 bg-background/70">
+      <Table>
+        <TableHeader>
+          <TableRow className="border-border/80">
+            <TableHead className="font-semibold text-foreground">Interview</TableHead>
+            <TableHead className="font-semibold text-foreground">Company</TableHead>
+            <TableHead className="font-semibold text-foreground">Created</TableHead>
+            <TableHead className="font-semibold text-foreground">Link</TableHead>
+            <TableHead className="text-right font-semibold text-foreground">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {roles.map((role) => (
+            <TableRow key={role.id} className="border-border/70">
+              <TableCell>
+                <div>
+                  <p className="font-medium text-foreground">{role.roleTitle}</p>
+                  <p className="text-xs text-muted-foreground">{role.targetSeniority}</p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <span className="text-sm text-foreground">{role.companyName || "-"}</span>
+              </TableCell>
+              <TableCell>
+                <span className="font-mono text-sm text-foreground">
+                  {new Date(role.createdAt).toLocaleString()}
+                </span>
+              </TableCell>
+              <TableCell className="max-w-[360px]">
+                <p className="truncate font-mono text-xs text-muted-foreground">
+                  {role.candidateApplyUrl}
+                </p>
+              </TableCell>
+              <TableCell className="text-right">
+                <div className="flex justify-end gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => navigator.clipboard.writeText(role.candidateApplyUrl)}
+                  >
+                    Copy
+                  </Button>
+                  <Button asChild size="sm">
+                    <Link href={role.candidateApplyUrl} target="_blank" rel="noopener noreferrer">
+                      Open
+                    </Link>
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
