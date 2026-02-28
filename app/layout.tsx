@@ -14,9 +14,9 @@ const sans = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Support Agent | ElevenLabs Voice Concierge",
+  title: "AI Engineer Screener | Role-Driven Interview Console",
   description:
-    "Launch a live ElevenLabs conversational support agent with instant voice access, guided assistance, and a polished deployment-ready interface.",
+    "Create reusable role-based ElevenLabs screening flows, collect candidate materials, and review transcript-based scorecards after each session.",
 };
 
 export default function RootLayout({
