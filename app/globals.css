@@ -6,7 +6,6 @@
   --line: rgba(22, 18, 13, 0.12);
   --card: rgba(255, 251, 245, 0.82);
   --accent: #bb4d00;
-  --accent-soft: #ffd2a4;
   --shadow: 0 28px 80px rgba(41, 24, 0, 0.14);
 }
 
@@ -26,7 +25,7 @@ body {
     radial-gradient(circle at top left, rgba(255, 211, 164, 0.85), transparent 26rem),
     radial-gradient(circle at bottom right, rgba(187, 77, 0, 0.1), transparent 22rem),
     linear-gradient(135deg, var(--bg) 0%, #f9f4ec 45%, var(--bg-deep) 100%);
-  font-family: "Plus Jakarta Sans", sans-serif;
+  font-family: var(--font-sans), sans-serif;
   overflow-x: hidden;
 }
 
@@ -40,6 +39,10 @@ body::before {
   background-size: 3.5rem 3.5rem;
   mask-image: radial-gradient(circle at center, black 35%, transparent 80%);
   pointer-events: none;
+}
+
+a {
+  color: inherit;
 }
 
 .page-shell {
@@ -153,7 +156,7 @@ body::before {
 h1 {
   margin: 0;
   max-width: 10ch;
-  font-family: "Instrument Serif", serif;
+  font-family: var(--font-display), serif;
   font-size: clamp(4rem, 9vw, 7.2rem);
   line-height: 0.92;
   font-weight: 400;
@@ -174,15 +177,19 @@ h1 {
   margin-top: 2rem;
 }
 
-.hero-actions a {
+.hero-actions a,
+.primary-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-height: 3.3rem;
   padding: 0.95rem 1.35rem;
   border-radius: 999px;
+  border: 0;
   text-decoration: none;
+  font: inherit;
   font-weight: 700;
+  cursor: pointer;
   transition:
     transform 180ms ease,
     background-color 180ms ease,
@@ -191,11 +198,14 @@ h1 {
 }
 
 .hero-actions a:hover,
-.hero-actions a:focus-visible {
+.hero-actions a:focus-visible,
+.primary-button:hover,
+.primary-button:focus-visible {
   transform: translateY(-2px);
 }
 
-.primary-link {
+.primary-link,
+.primary-button {
   color: #fff8f1;
   background: var(--ink);
 }
@@ -263,6 +273,9 @@ h1 {
 }
 
 .widget-wrap {
+  display: grid;
+  align-content: start;
+  gap: 1rem;
   position: relative;
   min-height: 27rem;
   padding: 1.25rem;
@@ -272,7 +285,19 @@ h1 {
     linear-gradient(135deg, rgba(255, 210, 164, 0.12), transparent);
 }
 
-elevenlabs-convai {
+.widget-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.widget-copy {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.convai-widget {
   display: block;
   width: 100%;
   min-height: 22rem;

@@ -1,32 +1,48 @@
 # Hackathon-Mistral-2026
 
-Static landing page for the ElevenLabs conversational support agent.
+Next.js app for the ElevenLabs conversational support agent.
 
-## Local preview
+## Stack
 
-Run any static file server from the project root, for example:
+- Next.js `16.1.6`
+- React `19.2.4`
+- App Router
 
-```bash
-python3 -m http.server 4173
-```
-
-Then open `http://localhost:4173`.
-
-## Deployment
-
-This project is a plain static site. You can deploy it to any static host, including:
-
-- Vercel
-- Netlify
-- Cloudflare Pages
-- GitHub Pages
-
-The page embeds the ElevenLabs widget directly from the CDN and is already configured with:
+The app is configured for:
 
 - Agent name: `Support agent`
 - Agent ID: `agent_2901kjhztrbmezq94c2dqnppp8mh`
 
+## Local development
+
+Install dependencies and start the dev server:
+
+```bash
+npm install
+npm run dev
+```
+
+Then open `http://localhost:3000`.
+
+## Production
+
+Build and run locally:
+
+```bash
+npm run build
+npm run start
+```
+
+## Vercel-oriented implementation notes
+
+- Uses Server Components by default for the landing page
+- Loads the ElevenLabs widget script only after user activation
+- Avoids sending unnecessary data across the server/client boundary
+
 ## Files
 
-- `index.html`: landing page markup and ElevenLabs widget embed
-- `styles.css`: layout, typography, motion, and responsive styling
+- `app/page.tsx`: main landing page
+- `app/layout.tsx`: metadata and global layout
+- `app/globals.css`: global styling
+- `components/voice-console.tsx`: client-side widget activation
+- `lib/agent.ts`: shared agent metadata
