@@ -17,6 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 
 const settings = [
@@ -233,6 +234,23 @@ export default function DesignPage() {
                 <Badge>Default badge</Badge>
                 <Badge variant="subtle">Subtle accent</Badge>
               </div>
+
+              <Tabs defaultValue="interviews" className="gap-4">
+                <TabsList>
+                  <TabsTrigger value="interviews">Interviews</TabsTrigger>
+                  <TabsTrigger value="candidates">Candidates</TabsTrigger>
+                </TabsList>
+                <TabsContent value="interviews" className="mt-0">
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                    Tabs now share the same bright CERNO styling used in the admin console redesign.
+                  </div>
+                </TabsContent>
+                <TabsContent value="candidates" className="mt-0">
+                  <div className="rounded-2xl border border-border/70 bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+                    The same primitive also supports nested candidate table and kanban switches.
+                  </div>
+                </TabsContent>
+              </Tabs>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2">

@@ -99,6 +99,16 @@ export interface RoleBootstrap {
   intro: string;
 }
 
+export interface JobDescriptionAutofill {
+  jobDescriptionFileName: string;
+  jobDescriptionText: string;
+  roleTitle?: string;
+  companyName?: string;
+  targetSeniority?: TargetSeniority;
+  focusAreas: string[];
+  warnings: string[];
+}
+
 export interface SessionBootstrap {
   sessionId: string;
   candidateName: string;

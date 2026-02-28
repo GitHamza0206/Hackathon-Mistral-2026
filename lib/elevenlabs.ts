@@ -2,7 +2,7 @@ import { ElevenLabsClient } from "@elevenlabs/elevenlabs-js";
 import type * as ElevenLabs from "@elevenlabs/elevenlabs-js/api";
 import { getRequiredEnv } from "@/lib/env";
 import type { CandidateSessionRecord, TranscriptEntry } from "@/lib/interviews";
-import { buildCandidateAgentPrompt } from "@/lib/prompt";
+import { buildCandidateAgentFirstMessage, buildCandidateAgentPrompt } from "@/lib/prompt";
 
 function getClient() {
   return new ElevenLabsClient({
@@ -17,7 +17,7 @@ export async function createCandidateSessionAgent(session: CandidateSessionRecor
     conversationConfig: {
       agent: {
         language: "en",
-        firstMessage: `Hi ${session.candidateProfile.candidateName}, thanks for joining. Please start by summarizing the most relevant recent work you have done for a ${session.roleSnapshot.roleTitle} role.`,
+        firstMessage: buildCandidateAgentFirstMessage(session),
         prompt: {
           prompt: buildCandidateAgentPrompt(session),
           temperature: 0.3,

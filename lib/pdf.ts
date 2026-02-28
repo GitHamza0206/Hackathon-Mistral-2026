@@ -2,7 +2,11 @@ import { Mistral } from "@mistralai/mistralai";
 import { getMistralOcrModel, getRequiredEnv } from "@/lib/env";
 
 const maxPdfSizeBytes = 10 * 1024 * 1024;
-const minTextLength = 40;
+export const minExtractedPdfTextLength = 40;
+
+export function hasReadablePdfText(value: string) {
+  return value.trim().length >= minExtractedPdfTextLength;
+}
 
 export async function parseUploadedPdf(
   file: File,
@@ -50,7 +54,7 @@ export async function parseUploadedPdf(
       .replace(/\n{3,}/g, "\n\n")
       .trim();
 
-    if (text.length < minTextLength) {
+    if (!hasReadablePdfText(text)) {
       throw new Error(`${label} did not contain enough readable text.`);
     }
 

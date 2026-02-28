@@ -7,7 +7,7 @@ import {
   validateRoleTemplateInput,
   type RoleTemplateRecord,
 } from "@/lib/interviews";
-import { parseUploadedPdf } from "@/lib/pdf";
+import { hasReadablePdfText, parseUploadedPdf } from "@/lib/pdf";
 import { saveRoleTemplate } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -18,6 +18,9 @@ export async function POST(request: NextRequest) {
   }
 
   const formData = await request.formData();
+  const jobDescriptionPdf = formData.get("jobDescriptionPdf");
+  const submittedJobDescriptionText = String(formData.get("jobDescriptionText") ?? "").trim();
+  const submittedJobDescriptionFileName = String(formData.get("jobDescriptionFileName") ?? "").trim();
   const payload = validateRoleTemplateInput({
     roleTitle: formData.get("roleTitle"),
     targetSeniority: formData.get("targetSeniority"),
@@ -27,9 +30,10 @@ export async function POST(request: NextRequest) {
     adminNotes: formData.get("adminNotes"),
   });
 
-  const jobDescriptionPdf = formData.get("jobDescriptionPdf");
-
-  if (!(jobDescriptionPdf instanceof File)) {
+  if (
+    !(jobDescriptionPdf instanceof File) &&
+    !(hasReadablePdfText(submittedJobDescriptionText) && submittedJobDescriptionFileName)
+  ) {
     return NextResponse.json(
       {
         error: "Job description PDF is required.",
@@ -50,7 +54,26 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const parsedPdf = await parseUploadedPdf(jobDescriptionPdf, "Job description PDF");
+    const parsedPdf =
+      hasReadablePdfText(submittedJobDescriptionText) && submittedJobDescriptionFileName
+        ? {
+            fileName: submittedJobDescriptionFileName,
+            text: submittedJobDescriptionText,
+          }
+        : jobDescriptionPdf instanceof File
+          ? await parseUploadedPdf(jobDescriptionPdf, "Job description PDF")
+          : null;
+
+    if (!parsedPdf) {
+      return NextResponse.json(
+        {
+          error: "Job description PDF is required.",
+          fieldErrors: { jobDescriptionPdf: "Upload the company job description as a PDF." },
+        },
+        { status: 400 },
+      );
+    }
+
     const roleId = createRoleId();
     const candidateApplyUrl = `${getAppBaseUrl(request.nextUrl.origin)}/apply/${roleId}`;
     const record: RoleTemplateRecord = {
