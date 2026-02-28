@@ -3,7 +3,7 @@
 import { useConversation } from "@elevenlabs/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { SessionBootstrap, TranscriptEntry } from "@/lib/interviews";
+import type { CandidateFeedback, SessionBootstrap, TranscriptEntry } from "@/lib/interviews";
 
 interface InterviewSessionProps {
   sessionId: string;
@@ -24,6 +24,25 @@ interface ConversationErrorContext {
   rawEvent?: unknown;
 }
 
+type TimerUrgency = "normal" | "warning" | "danger";
+
+interface SessionTimer {
+  label: string;
+  value: string;
+  urgency: TimerUrgency;
+  remainingSeconds: number;
+}
+
+type SessionPhase =
+  | "ready"
+  | "connecting"
+  | "active"
+  | "winding_down"
+  | "overtime"
+  | "processing"
+  | "feedback"
+  | "failed";
+
 export function InterviewSession({ sessionId }: InterviewSessionProps) {
   const [bootstrap, setBootstrap] = useState<SessionBootstrap | null>(null);
   const [loading, setLoading] = useState(true);
@@ -33,6 +52,7 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
   const [finalizing, setFinalizing] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [now, setNow] = useState(() => Date.now());
+  const [candidateFeedback, setCandidateFeedback] = useState<CandidateFeedback | null>(null);
   const conversationIdRef = useRef("");
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const completionSentRef = useRef(false);
@@ -95,6 +115,10 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
             body.transcript ?? [],
             body.sessionStartedAt,
           );
+
+          if (body.candidateFeedback) {
+            setCandidateFeedback(body.candidateFeedback);
+          }
         }
       } catch (fetchError) {
         if (!cancelled) {
@@ -284,9 +308,25 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
         }),
       });
 
+      const body = (await response.json()) as {
+        error?: string;
+        ok?: boolean;
+        status?: string;
+        candidateFeedback?: CandidateFeedback;
+      };
+
       if (!response.ok) {
-        const body = (await response.json()) as { error?: string };
         throw new Error(body.error ?? "Unable to finalize the interview.");
+      }
+
+      if (body.status && body.status !== "completed" && body.status !== "failed") {
+        setBootstrap((current) =>
+          current ? { ...current, status: body.status as SessionBootstrap["status"] } : current,
+        );
+      }
+
+      if (body.candidateFeedback) {
+        setCandidateFeedback(body.candidateFeedback);
       }
     } catch (completionError) {
       completionSentRef.current = false;
@@ -300,9 +340,17 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     }
   }
 
+  const isScoredStatus = bootstrap?.status === "scored" || bootstrap?.status === "rejected" || bootstrap?.status === "under_review" || bootstrap?.status === "next_round";
   const completed =
-    bootstrap?.status === "completed" || bootstrap?.status === "scored" || finalizing;
+    bootstrap?.status === "completed" || isScoredStatus || finalizing;
   const timer = bootstrap ? buildSessionTimer(bootstrap, now, conversation.status === "connected") : null;
+  const phase = deriveSessionPhase(
+    bootstrap,
+    conversation.status,
+    finalizing,
+    candidateFeedback,
+    timer,
+  );
 
   useEffect(() => {
     if (!bootstrap) {
@@ -310,7 +358,7 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     }
 
     const isTerminalStatus =
-      bootstrap.status === "completed" || bootstrap.status === "scored" || bootstrap.status === "failed";
+      bootstrap.status === "completed" || bootstrap.status === "scored" || bootstrap.status === "rejected" || bootstrap.status === "under_review" || bootstrap.status === "next_round" || bootstrap.status === "failed";
 
     if (isTerminalStatus) {
       return;
@@ -360,6 +408,18 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
         <p className="eyebrow">Live interview</p>
         <h1>AI engineer screening session</h1>
 
+        {phase !== "ready" && (
+          <p className="phase-label">
+            {phase === "connecting" && "Connecting..."}
+            {phase === "active" && "Interview in progress"}
+            {phase === "winding_down" && "Wrapping up"}
+            {phase === "overtime" && "Over planned time"}
+            {phase === "processing" && "Processing results..."}
+            {phase === "feedback" && "Feedback ready"}
+            {phase === "failed" && "Session encountered an error"}
+          </p>
+        )}
+
         {loading ? <p className="section-copy">Loading interview setup...</p> : null}
         {error ? <p className="error-text">{error}</p> : null}
 
@@ -374,7 +434,7 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
                 <span>Role</span>
                 <strong>{bootstrap.roleTitle}</strong>
               </div>
-              <div>
+              <div className={timer?.urgency === "danger" ? "timer-danger" : timer?.urgency === "warning" ? "timer-warning" : ""}>
                 <span>{timer?.label ?? "Duration"}</span>
                 <strong>{timer?.value ?? `${bootstrap.durationMinutes} min`}</strong>
               </div>
@@ -382,61 +442,152 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
 
             <p className="section-copy">{bootstrap.intro}</p>
 
-            <div className="candidate-actions">
-              <button
-                className="primary-button"
-                type="button"
-                onClick={startInterview}
-                disabled={!bootstrap.agentId || completed || starting || conversation.status !== "disconnected"}
-              >
-                {starting || conversation.status === "connecting"
-                  ? "Connecting..."
-                  : conversation.status === "connected"
-                    ? "Live now"
-                    : "Start interview"}
-              </button>
-              <button
-                className="secondary-button"
-                type="button"
-                onClick={stopInterview}
-                disabled={conversation.status !== "connected"}
-              >
-                End session
-              </button>
-            </div>
+            {(phase === "ready" || phase === "active" || phase === "winding_down" || phase === "overtime") && (
+              <div className="session-notice">
+                <p className="section-label">How this session works</p>
+                <p className="section-copy">
+                  The session will not close automatically when time runs out.
+                  You decide when to end the interview by clicking &ldquo;End session.&rdquo;
+                  However, only the discussion within the planned {bootstrap.durationMinutes}-minute
+                  window counts toward your evaluation.
+                </p>
+              </div>
+            )}
 
-            <div className="status-grid">
-              <div className="status-box">
-                <span>Connection</span>
-                <strong>{conversation.status}</strong>
+            {phase !== "processing" && phase !== "feedback" && (
+              <div className="candidate-actions">
+                <button
+                  className="primary-button"
+                  type="button"
+                  onClick={startInterview}
+                  disabled={!bootstrap.agentId || completed || starting || conversation.status !== "disconnected"}
+                >
+                  {starting || conversation.status === "connecting"
+                    ? "Connecting..."
+                    : conversation.status === "connected"
+                      ? "Live now"
+                      : "Start interview"}
+                </button>
+                <button
+                  className={phase === "winding_down" || phase === "overtime"
+                    ? "primary-button end-session-urgent"
+                    : "secondary-button"}
+                  type="button"
+                  onClick={stopInterview}
+                  disabled={conversation.status !== "connected"}
+                >
+                  End session
+                </button>
               </div>
-              <div className="status-box">
-                <span>Mode</span>
-                <strong>{conversation.isSpeaking ? "Agent speaking" : "Listening"}</strong>
-              </div>
-              <div className="status-box">
-                <span>Conversation ID</span>
-                <strong>{conversationId || "Pending"}</strong>
-              </div>
-            </div>
+            )}
 
-            <section className="transcript-panel">
-              <div className="panel-heading">
-                <div>
-                  <p className="section-label">Interview privacy</p>
-                  <h2>No live transcript on screen</h2>
+            {phase !== "processing" && phase !== "feedback" && (
+              <div className="status-grid">
+                <div className="status-box">
+                  <span>Connection</span>
+                  <strong>
+                    <span className={`connection-dot ${conversation.status}`} />
+                    {conversation.status}
+                  </strong>
+                </div>
+                <div className="status-box">
+                  <span>Mode</span>
+                  <strong>
+                    {conversation.isSpeaking ? (
+                      <>
+                        <span className="speaking-indicator" aria-hidden="true">
+                          <span className="speaking-bar" />
+                          <span className="speaking-bar" />
+                          <span className="speaking-bar" />
+                          <span className="speaking-bar" />
+                          <span className="speaking-bar" />
+                        </span>
+                        {" "}Agent speaking
+                      </>
+                    ) : (
+                      "Listening"
+                    )}
+                  </strong>
+                </div>
+                <div className="status-box">
+                  <span>Conversation ID</span>
+                  <strong>{conversationId || "Pending"}</strong>
                 </div>
               </div>
+            )}
 
-              <p className="section-copy">
-                Your answers stay off-screen during the interview. We still capture the transcript in
-                the background so the hiring team can review the completed session afterward.
+            {(phase === "active" || phase === "winding_down" || phase === "overtime") && (
+              <section className="transcript-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="section-label">Interview privacy</p>
+                    <h2>No live transcript on screen</h2>
+                  </div>
+                </div>
+
+                <p className="section-copy">
+                  Your answers stay off-screen during the interview. We still capture the transcript in
+                  the background so the hiring team can review the completed session afterward.
+                </p>
+              </section>
+            )}
+
+            {phase === "processing" && (
+              <section className="feedback-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="section-label">Session complete</p>
+                    <h2>Processing your interview</h2>
+                  </div>
+                </div>
+                <p className="section-copy">
+                  Your responses are being reviewed. This usually takes a moment.
+                  Please stay on this page to receive your feedback.
+                </p>
+                <div className="processing-indicator">
+                  <div className="processing-dot" />
+                  <div className="processing-dot" />
+                  <div className="processing-dot" />
+                </div>
+              </section>
+            )}
+
+            {phase === "feedback" && candidateFeedback && (
+              <section className="feedback-panel">
+                <div className="panel-heading">
+                  <div>
+                    <p className="section-label">Interview feedback</p>
+                    <h2>Your session summary</h2>
+                  </div>
+                </div>
+                <p className="summary-copy">{candidateFeedback.summary}</p>
+                <div className="feedback-section">
+                  <p className="section-label">What went well</p>
+                  <ul className="feedback-list">
+                    {candidateFeedback.strengths.map((s) => (
+                      <li key={s}>{s}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div className="feedback-section">
+                  <p className="section-label">Areas to consider</p>
+                  <ul className="feedback-list">
+                    {candidateFeedback.concerns.map((c) => (
+                      <li key={c}>{c}</li>
+                    ))}
+                  </ul>
+                </div>
+                <p className="fine-print">
+                  This is a high-level summary. The full evaluation has been sent to the hiring team.
+                </p>
+              </section>
+            )}
+
+            {phase !== "processing" && phase !== "feedback" && (
+              <p className="fine-print">
+                When the session ends, the transcript is sent to the hiring side for evaluation.
               </p>
-            </section>
-
-            <p className="fine-print">
-              When the session ends, the transcript is sent to the hiring side for evaluation.
-            </p>
+            )}
           </>
         ) : null}
 
@@ -446,6 +597,28 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
       </div>
     </main>
   );
+}
+
+function deriveSessionPhase(
+  bootstrap: SessionBootstrap | null,
+  connectionStatus: string,
+  finalizing: boolean,
+  candidateFeedback: CandidateFeedback | null,
+  timer: SessionTimer | null,
+): SessionPhase {
+  if (!bootstrap) return "ready";
+  if (candidateFeedback) return "feedback";
+  if (bootstrap.status === "scored" || bootstrap.status === "rejected" || bootstrap.status === "under_review" || bootstrap.status === "next_round") return "feedback";
+  if (finalizing) return "processing";
+  if (bootstrap.status === "completed") return "processing";
+  if (bootstrap.status === "failed") return "failed";
+  if (connectionStatus === "connecting") return "connecting";
+  if (connectionStatus === "connected") {
+    if (timer && timer.remainingSeconds <= 0) return "overtime";
+    if (timer && timer.urgency !== "normal") return "winding_down";
+    return "active";
+  }
+  return "ready";
 }
 
 function mapMessageToTranscript(message: ConversationMessage): TranscriptEntry | null {
@@ -484,7 +657,7 @@ function buildSessionTimer(
   bootstrap: SessionBootstrap,
   now: number,
   isConnected: boolean,
-) {
+): SessionTimer {
   const plannedDurationSeconds = bootstrap.durationMinutes * 60;
   const startedAtMs = bootstrap.sessionStartedAt ? Date.parse(bootstrap.sessionStartedAt) : Number.NaN;
   const endedAtMs = bootstrap.sessionEndedAt ? Date.parse(bootstrap.sessionEndedAt) : Number.NaN;
@@ -495,6 +668,8 @@ function buildSessionTimer(
     return {
       label: "Duration",
       value: `${bootstrap.durationMinutes}:00 target`,
+      urgency: "normal",
+      remainingSeconds: plannedDurationSeconds,
     };
   }
 
@@ -502,16 +677,27 @@ function buildSessionTimer(
   const elapsedSeconds = Math.max(0, Math.floor((effectiveNow - startedAtMs) / 1000));
   const remainingSeconds = Math.max(0, plannedDurationSeconds - elapsedSeconds);
 
+  let urgency: TimerUrgency = "normal";
+  if (remainingSeconds <= 0) {
+    urgency = "danger";
+  } else if (remainingSeconds < 300) {
+    urgency = remainingSeconds < 120 ? "danger" : "warning";
+  }
+
   if (hasEnded || !isConnected) {
     return {
       label: "Elapsed",
       value: formatTimerValue(elapsedSeconds),
+      urgency: "normal",
+      remainingSeconds,
     };
   }
 
   return {
     label: "Time left",
     value: formatTimerValue(remainingSeconds),
+    urgency,
+    remainingSeconds,
   };
 }
 

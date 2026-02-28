@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
     focusAreas: splitFocusAreas(String(formData.get("focusAreas") ?? "")),
     companyName: formData.get("companyName"),
     adminNotes: formData.get("adminNotes"),
+    rejectThreshold: formData.get("rejectThreshold"),
+    advanceThreshold: formData.get("advanceThreshold"),
   });
 
   if (

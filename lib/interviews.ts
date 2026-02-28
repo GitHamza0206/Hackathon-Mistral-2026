@@ -10,6 +10,9 @@ export type CandidateSessionStatus =
   | "in_progress"
   | "completed"
   | "scored"
+  | "rejected"
+  | "under_review"
+  | "next_round"
   | "failed";
 
 export interface GitHubRepo {
@@ -46,6 +49,8 @@ export interface RoleTemplateInput {
   focusAreas: string[];
   companyName?: string;
   adminNotes?: string;
+  rejectThreshold?: number;
+  advanceThreshold?: number;
 }
 
 export interface RoleTemplateRecord extends RoleTemplateInput {
@@ -80,6 +85,8 @@ export interface CandidateSessionRoleSnapshot {
   companyName?: string;
   adminNotes?: string;
   jobDescriptionText: string;
+  rejectThreshold?: number;
+  advanceThreshold?: number;
 }
 
 export interface TranscriptEntry {
@@ -101,6 +108,20 @@ export interface Scorecard {
   concerns: string[];
   followUpQuestions: string[];
   summary: string;
+}
+
+export interface CandidateFeedback {
+  strengths: string[];
+  concerns: string[];
+  summary: string;
+}
+
+export function extractCandidateFeedback(scorecard: Scorecard): CandidateFeedback {
+  return {
+    strengths: scorecard.strengths,
+    concerns: scorecard.concerns,
+    summary: scorecard.summary,
+  };
 }
 
 export interface CandidateSessionRecord {
@@ -152,6 +173,7 @@ export interface SessionBootstrap {
   transcript?: TranscriptEntry[];
   sessionStartedAt?: string;
   sessionEndedAt?: string;
+  candidateFeedback?: CandidateFeedback;
 }
 
 export interface CandidateSessionSyncInput {
@@ -226,6 +248,31 @@ export function validateRoleTemplateInput(payload: unknown): ValidationResult<Ro
     errors.durationMinutes = "Choose an interview duration between 10 and 90 minutes.";
   }
 
+  const rejectThresholdRaw = readValue(payload, "rejectThreshold");
+  const advanceThresholdRaw = readValue(payload, "advanceThreshold");
+  const rejectThreshold =
+    rejectThresholdRaw != null ? Number(rejectThresholdRaw) : undefined;
+  const advanceThreshold =
+    advanceThresholdRaw != null ? Number(advanceThresholdRaw) : undefined;
+
+  if (rejectThreshold != null && (!Number.isFinite(rejectThreshold) || rejectThreshold < 0 || rejectThreshold > 100)) {
+    errors.rejectThreshold = "Reject threshold must be between 0 and 100.";
+  }
+
+  if (advanceThreshold != null && (!Number.isFinite(advanceThreshold) || advanceThreshold < 0 || advanceThreshold > 100)) {
+    errors.advanceThreshold = "Advance threshold must be between 0 and 100.";
+  }
+
+  if (
+    rejectThreshold != null &&
+    advanceThreshold != null &&
+    Number.isFinite(rejectThreshold) &&
+    Number.isFinite(advanceThreshold) &&
+    rejectThreshold >= advanceThreshold
+  ) {
+    errors.rejectThreshold = "Reject threshold must be lower than the advance threshold.";
+  }
+
   if (Object.keys(errors).length > 0) {
     return { errors };
   }
@@ -238,6 +285,8 @@ export function validateRoleTemplateInput(payload: unknown): ValidationResult<Ro
       focusAreas: focusAreas.slice(0, 8),
       companyName,
       adminNotes,
+      rejectThreshold: rejectThreshold ?? 40,
+      advanceThreshold: advanceThreshold ?? 90,
     },
   };
 }
@@ -354,7 +403,21 @@ export function createRoleSnapshot(role: RoleTemplateRecord): CandidateSessionRo
     companyName: role.companyName,
     adminNotes: role.adminNotes,
     jobDescriptionText: role.jobDescriptionText,
+    rejectThreshold: role.rejectThreshold,
+    advanceThreshold: role.advanceThreshold,
   };
+}
+
+export function resolvePostScoringStatus(
+  score: number,
+  rejectThreshold: number | undefined,
+  advanceThreshold: number | undefined,
+): CandidateSessionStatus {
+  const reject = rejectThreshold ?? 40;
+  const advance = advanceThreshold ?? 90;
+  if (score < reject) return "rejected";
+  if (score >= advance) return "next_round";
+  return "under_review";
 }
 
 export function clipText(text: string, maxChars: number) {

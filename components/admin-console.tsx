@@ -84,6 +84,8 @@ const defaultForm = {
   focusAreas: "",
   companyName: "",
   adminNotes: "",
+  rejectThreshold: "40",
+  advanceThreshold: "90",
 };
 
 type NavView = "interviews" | "candidates";
@@ -365,6 +367,8 @@ export function AdminConsole({
       payload.set("focusAreas", splitFocusAreas(form.focusAreas).join("\n"));
       payload.set("companyName", form.companyName.trim());
       payload.set("adminNotes", form.adminNotes.trim());
+      payload.set("rejectThreshold", form.rejectThreshold);
+      payload.set("advanceThreshold", form.advanceThreshold);
 
       if (jobDescriptionPdf) {
         payload.set("jobDescriptionPdf", jobDescriptionPdf);
@@ -458,7 +462,7 @@ export function AdminConsole({
               <MetricCard label="Candidate sessions" value={String(recentSessions.length)} />
               <MetricCard
                 label="Scored interviews"
-                value={String(recentSessions.filter((session) => session.status === "scored").length)}
+                value={String(recentSessions.filter((session) => ["scored", "rejected", "under_review", "next_round"].includes(session.status)).length)}
               />
             </div>
           </CardHeader>
@@ -945,6 +949,40 @@ function RoleForm({
           />
         </Field>
 
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Reject below (score)" error={errors.rejectThreshold}>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={form.rejectThreshold}
+              placeholder="40"
+              onChange={(event) => onUpdateFormValue("rejectThreshold", event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Candidates scoring below this are automatically rejected.
+            </p>
+          </Field>
+
+          <Field label="Auto-advance above (score)" error={errors.advanceThreshold}>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={form.advanceThreshold}
+              placeholder="90"
+              onChange={(event) => onUpdateFormValue("advanceThreshold", event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Candidates scoring above this advance directly to the next round.
+            </p>
+          </Field>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Candidates scoring between the two thresholds land in &ldquo;Under review&rdquo; for manual decision.
+        </p>
+
         {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
 
         <DialogFooter>
@@ -993,7 +1031,9 @@ const KANBAN_COLUMNS: { status: CandidateSessionStatus; label: string }[] = [
   { status: "agent_ready", label: "Ready" },
   { status: "in_progress", label: "In progress" },
   { status: "completed", label: "Completed" },
-  { status: "scored", label: "Scored" },
+  { status: "under_review", label: "Under review" },
+  { status: "next_round", label: "Next round" },
+  { status: "rejected", label: "Rejected" },
   { status: "failed", label: "Failed" },
 ];
 
@@ -1024,6 +1064,9 @@ function StatusBadge({ status }: { status: CandidateSessionStatus }) {
     in_progress: "border-primary/20 bg-primary/10 text-primary",
     completed: "border-border bg-muted/70 text-muted-foreground",
     scored: "border-emerald-200/80 bg-emerald-50 text-emerald-700",
+    under_review: "border-amber-200/80 bg-amber-50 text-amber-700",
+    next_round: "border-emerald-200/80 bg-emerald-50 text-emerald-700",
+    rejected: "border-destructive/20 bg-destructive/8 text-destructive",
     failed: "border-destructive/20 bg-destructive/8 text-destructive",
   };
 

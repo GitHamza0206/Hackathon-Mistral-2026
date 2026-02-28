@@ -6,7 +6,7 @@ import type {
   SessionBootstrap,
   TranscriptEntry,
 } from "@/lib/interviews";
-import { clipText } from "@/lib/interviews";
+import { clipText, extractCandidateFeedback } from "@/lib/interviews";
 
 export function buildRoleApplyIntro(role: RoleTemplateRecord) {
   const companyPrefix = role.companyName ? `${role.companyName} is hiring for` : "This interview is for";
@@ -32,6 +32,10 @@ export function buildSessionBootstrap(
     transcript: session.transcript ?? [],
     sessionStartedAt: session.sessionStartedAt,
     sessionEndedAt: session.sessionEndedAt,
+    candidateFeedback:
+      ["scored", "rejected", "under_review", "next_round"].includes(session.status) && session.scorecard
+        ? extractCandidateFeedback(session.scorecard)
+        : undefined,
   };
 }
 
@@ -272,6 +276,22 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     "- Challenge resume and GitHub claims when they sound overstated or underspecified, but do so conversationally, not confrontationally.",
     "- Reward specific production experience, engineering judgment, and ownership.",
     "- A candidate who explains their reasoning clearly and acknowledges uncertainty is more valuable than one who sounds confident but stays surface-level.",
+  );
+
+  const durationMinutes = session.roleSnapshot.durationMinutes;
+  const technicalQuestionBudget = Math.max(2, Math.floor((durationMinutes - 5) / 8));
+
+  base.push(
+    "",
+    "Time management and wind-down:",
+    `- The total interview duration is approximately ${durationMinutes} minutes.`,
+    `- You should plan to cover roughly ${technicalQuestionBudget} main technical topics, each with one opening question and one or two follow-ups.`,
+    `- After you have covered ${technicalQuestionBudget} technical topics or when you sense the conversation has been going on for a while, begin winding down.`,
+    "- To wind down, transition naturally by saying something like: 'We are nearing the end of our time together. Before we wrap up, I would like to give you a chance to ask any questions you might have about the role or the company.'",
+    "- During wind-down, do NOT ask any new technical evaluation questions.",
+    "- Answer the candidate's questions about the role or company briefly and honestly. If you do not know something, say so.",
+    "- After the candidate's questions (or if they have none), close the interview politely: thank them for their time and let them know the hiring team will review the session.",
+    "- Never rush the candidate. The wind-down should feel natural, not abrupt.",
   );
 
   return base.filter(Boolean).join("\n");
