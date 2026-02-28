@@ -63,18 +63,41 @@ interface ExtractJobDescriptionResponse extends JobDescriptionAutofill {
 }
 
 const defaultForm = {
-  roleTitle: "Senior AI Engineer",
-  targetSeniority: "senior" as TargetSeniority,
-  durationMinutes: "25",
-  focusAreas: "LLM systems\nRAG and evals\nProduction debugging\nSystem design",
+  roleTitle: "",
+  targetSeniority: "" as TargetSeniority | "",
+  durationMinutes: "",
+  focusAreas: "",
   companyName: "",
   adminNotes: "",
 };
 
+const sampleJobDescription = {
+  fileName: "sample-ai-engineer-jd.pdf",
+  text: `
+Acme AI is hiring a Senior AI Engineer to build and operate production-grade LLM features.
+
+You will work on retrieval-augmented generation systems, prompt and tool orchestration,
+evaluation pipelines, observability, and backend services that support AI product features.
+
+We are looking for someone who has shipped AI systems in production, can debug model and
+backend failures, and can make practical tradeoffs around quality, latency, and cost.
+`.trim(),
+  roleTitle: "Senior AI Engineer",
+  companyName: "Acme AI",
+  targetSeniority: "senior" as TargetSeniority,
+  focusAreas: [
+    "LLM systems",
+    "RAG and retrieval",
+    "Evaluation and observability",
+    "Production debugging",
+  ],
+};
+
 type NavView = "interviews" | "candidates";
 type CandidatesView = "table" | "kanban";
-type OcrStatus = "idle" | "processing" | "success" | "error";
+type OcrStatus = "idle" | "processing" | "success" | "sample" | "error";
 type OcrField = "roleTitle" | "companyName" | "targetSeniority" | "focusAreas";
+type AutofillSource = "ocr" | "sample";
 
 const ocrManagedFields: OcrField[] = [
   "roleTitle",
@@ -109,6 +132,7 @@ export function AdminConsole({
   const [ocrError, setOcrError] = useState("");
   const [ocrWarnings, setOcrWarnings] = useState<string[]>([]);
   const [ocrFields, setOcrFields] = useState<Set<OcrField>>(new Set());
+  const [autofillSource, setAutofillSource] = useState<AutofillSource | null>(null);
 
   const clearFieldError = (field: string) => {
     setErrors((current) => {
@@ -130,6 +154,7 @@ export function AdminConsole({
     setOcrError("");
     setOcrWarnings([]);
     setOcrFields(new Set());
+    setAutofillSource(null);
     extractionRequestIdRef.current += 1;
 
     if (inputRef.current) {
@@ -173,6 +198,97 @@ export function AdminConsole({
 
   const openJobDescriptionPicker = () => {
     inputRef.current?.click();
+  };
+
+  const applyAutofill = ({
+    source,
+    fileName,
+    text,
+    roleTitle,
+    companyName,
+    targetSeniority,
+    focusAreas,
+    warnings,
+  }: {
+    source: AutofillSource;
+    fileName: string;
+    text: string;
+    roleTitle?: string;
+    companyName?: string;
+    targetSeniority?: TargetSeniority;
+    focusAreas: string[];
+    warnings?: string[];
+  }) => {
+    const previousOcrFields = new Set(ocrFields);
+    const nextOcrFields = new Set<OcrField>();
+
+    setForm((current) => {
+      const next = { ...current };
+
+      const applyValue = (
+        field: OcrField,
+        incomingValue: string | TargetSeniority | undefined,
+        fallbackValue: string,
+      ) => {
+        const normalizedValue =
+          typeof incomingValue === "string" ? incomingValue.trim() : incomingValue;
+
+        if (normalizedValue) {
+          next[field] = normalizedValue as never;
+          nextOcrFields.add(field);
+          return;
+        }
+
+        if (previousOcrFields.has(field)) {
+          next[field] = fallbackValue as never;
+        }
+      };
+
+      applyValue("roleTitle", roleTitle, defaultForm.roleTitle);
+      applyValue("companyName", companyName, defaultForm.companyName);
+      applyValue("targetSeniority", targetSeniority, defaultForm.targetSeniority);
+
+      if (focusAreas.length > 0) {
+        next.focusAreas = focusAreas.join("\n");
+        nextOcrFields.add("focusAreas");
+      } else if (previousOcrFields.has("focusAreas")) {
+        next.focusAreas = defaultForm.focusAreas;
+      }
+
+      return next;
+    });
+
+    setOcrFields(nextOcrFields);
+    setAutofillSource(source);
+    setJobDescriptionText(text);
+    setJobDescriptionFileName(fileName);
+    setOcrWarnings(warnings ?? []);
+    setOcrError("");
+    setOcrStatus(source === "ocr" ? "success" : "sample");
+  };
+
+  const handleUseSample = () => {
+    setCreatedUrl(null);
+    setSubmitError("");
+    clearFieldError("jobDescriptionPdf");
+    setJobDescriptionPdf(null);
+
+    applyAutofill({
+      source: "sample",
+      fileName: sampleJobDescription.fileName,
+      text: sampleJobDescription.text,
+      roleTitle: sampleJobDescription.roleTitle,
+      companyName: sampleJobDescription.companyName,
+      targetSeniority: sampleJobDescription.targetSeniority,
+      focusAreas: sampleJobDescription.focusAreas,
+      warnings: [
+        "Sample fallback loaded. Replace it with a real job description before production use.",
+      ],
+    });
+
+    if (inputRef.current) {
+      inputRef.current.value = "";
+    }
   };
 
   const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -244,50 +360,16 @@ export function AdminConsole({
         throw new Error(body.error ?? "Unable to extract the job description.");
       }
 
-      const previousOcrFields = new Set(ocrFields);
-      const nextOcrFields = new Set<OcrField>();
-
-      setForm((current) => {
-        const next = { ...current };
-
-        const applyValue = (
-          field: OcrField,
-          incomingValue: string | TargetSeniority | undefined,
-          fallbackValue: string,
-        ) => {
-          const normalizedValue =
-            typeof incomingValue === "string" ? incomingValue.trim() : incomingValue;
-
-          if (normalizedValue) {
-            next[field] = normalizedValue as never;
-            nextOcrFields.add(field);
-            return;
-          }
-
-          if (previousOcrFields.has(field)) {
-            next[field] = fallbackValue as never;
-          }
-        };
-
-        applyValue("roleTitle", body.roleTitle, defaultForm.roleTitle);
-        applyValue("companyName", body.companyName, defaultForm.companyName);
-        applyValue("targetSeniority", body.targetSeniority, defaultForm.targetSeniority);
-
-        if (body.focusAreas.length > 0) {
-          next.focusAreas = body.focusAreas.join("\n");
-          nextOcrFields.add("focusAreas");
-        } else if (previousOcrFields.has("focusAreas")) {
-          next.focusAreas = defaultForm.focusAreas;
-        }
-
-        return next;
+      applyAutofill({
+        source: "ocr",
+        fileName: body.jobDescriptionFileName,
+        text: body.jobDescriptionText,
+        roleTitle: body.roleTitle,
+        companyName: body.companyName,
+        targetSeniority: body.targetSeniority,
+        focusAreas: body.focusAreas,
+        warnings: body.warnings,
       });
-
-      setOcrFields(nextOcrFields);
-      setJobDescriptionText(body.jobDescriptionText);
-      setJobDescriptionFileName(body.jobDescriptionFileName);
-      setOcrWarnings(body.warnings ?? []);
-      setOcrStatus("success");
     } catch (error) {
       if (requestId !== extractionRequestIdRef.current) {
         return;
@@ -296,6 +378,7 @@ export function AdminConsole({
       setJobDescriptionText("");
       setOcrFields(new Set());
       setOcrWarnings([]);
+      setAutofillSource(null);
       setOcrStatus("error");
       setOcrError(
         error instanceof Error ? error.message : "Unable to extract the job description.",
@@ -426,7 +509,7 @@ export function AdminConsole({
               </TabsTrigger>
             </TabsList>
             <p className="text-sm text-muted-foreground">
-              Review-first OCR keeps the editable template in sync with the uploaded JD.
+              OCR-first setup keeps the editable role form grounded in the uploaded JD.
             </p>
           </div>
 
@@ -449,9 +532,8 @@ export function AdminConsole({
                       </CardDescription>
                     </div>
 
-                    {ocrStatus === "success" ? (
-                      <Badge variant="orange">Processed with Mistral OCR</Badge>
-                    ) : null}
+                    {ocrStatus === "success" ? <Badge variant="orange">Processed with Mistral OCR</Badge> : null}
+                    {ocrStatus === "sample" ? <Badge variant="subtle">Using sample fallback</Badge> : null}
                   </div>
                 </CardHeader>
 
@@ -470,12 +552,15 @@ export function AdminConsole({
                         <FileArrowUp className="size-4" weight="duotone" />
                         {jobDescriptionFileName ? "Replace PDF" : "Upload job description"}
                       </Button>
+                      <Button type="button" variant="secondary" onClick={handleUseSample}>
+                        Use sample
+                      </Button>
                       <Badge variant="subtle">Review before save</Badge>
                     </div>
 
                     <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                      The PDF is processed server-side, OCR text is preserved for submit, and
-                      inferred values stay editable in the template form.
+                      Start with a PDF when OCR is working. If extraction is unstable, use the
+                      sample fallback and keep testing the flow.
                     </p>
 
                     {errors.jobDescriptionPdf ? (
@@ -491,6 +576,8 @@ export function AdminConsole({
                           ? "Waiting for a PDF"
                           : ocrStatus === "processing"
                             ? "Processing with Mistral OCR..."
+                            : ocrStatus === "sample"
+                              ? "Sample fallback loaded"
                             : ocrStatus === "success"
                               ? "OCR completed"
                               : "Processing failed"
@@ -505,7 +592,7 @@ export function AdminConsole({
                       label="Autofill coverage"
                       value={
                         ocrFields.size > 0
-                          ? `${ocrFields.size} field${ocrFields.size > 1 ? "s" : ""} tagged as OCR`
+                          ? `${ocrFields.size} field${ocrFields.size > 1 ? "s" : ""} tagged as ${autofillSource === "sample" ? "sample" : "OCR"}`
                           : "No fields tagged yet"
                       }
                     />
@@ -550,18 +637,41 @@ export function AdminConsole({
                       <p className="mt-1 text-sm text-muted-foreground">{ocrError}</p>
                     </div>
                   ) : null}
+
+                  {ocrStatus === "sample" ? (
+                    <div className="grid gap-3 rounded-[calc(var(--radius)+0.25rem)] border border-amber-200/80 bg-amber-50/80 p-4">
+                      <p className="text-sm font-medium text-amber-700">Sample fallback loaded</p>
+                      <p className="text-sm text-amber-700/80">
+                        The fields on the right are populated from a built-in sample so you can
+                        keep testing even if OCR is currently failing.
+                      </p>
+                      {ocrWarnings.length > 0 ? (
+                        <div className="grid gap-2 rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-background/80 p-3">
+                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                            <WarningCircle className="size-4 text-primary" weight="duotone" />
+                            Sample notes
+                          </div>
+                          <ul className="grid gap-2 text-sm leading-6 text-muted-foreground">
+                            {ocrWarnings.map((warning) => (
+                              <li key={warning}>{warning}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </CardContent>
               </Card>
 
               <Card className="border-border/70 bg-card/88">
                 <CardHeader>
                   <Badge variant="subtle" className="w-fit">
-                    Interview template
+                    Role setup
                   </Badge>
                   <CardTitle>Review and publish the candidate flow</CardTitle>
                   <CardDescription>
-                    The role form stays editable after extraction. Only grounded JD fields get OCR
-                    badges, while duration and admin notes remain manual.
+                    The form starts empty. OCR or the sample fallback can populate the JD-backed
+                    fields, while duration and admin notes remain manual.
                   </CardDescription>
                 </CardHeader>
 
@@ -570,12 +680,18 @@ export function AdminConsole({
                     <Field
                       label="Role title"
                       error={errors.roleTitle}
-                      badge={ocrFields.has("roleTitle") ? "OCR" : undefined}
+                      badge={
+                        ocrFields.has("roleTitle")
+                          ? autofillSource === "sample"
+                            ? "Sample"
+                            : "OCR"
+                          : undefined
+                      }
                     >
                       <Input
                         value={form.roleTitle}
                         onChange={(event) => updateFormValue("roleTitle", event.target.value)}
-                        placeholder="Senior AI Engineer"
+                        placeholder="Filled by OCR or sample"
                       />
                     </Field>
 
@@ -583,7 +699,13 @@ export function AdminConsole({
                       <Field
                         label="Target seniority"
                         error={errors.targetSeniority}
-                        badge={ocrFields.has("targetSeniority") ? "OCR" : undefined}
+                        badge={
+                          ocrFields.has("targetSeniority")
+                            ? autofillSource === "sample"
+                              ? "Sample"
+                              : "OCR"
+                            : undefined
+                        }
                       >
                         <select
                           className="flex h-12 w-full rounded-[calc(var(--radius)+0.15rem)] border border-input bg-input/50 px-4 py-3 text-sm text-foreground shadow-sm outline-none transition-[border-color,box-shadow,transform] focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/15 focus-visible:-translate-y-px"
@@ -595,6 +717,7 @@ export function AdminConsole({
                             )
                           }
                         >
+                          <option value="">Select seniority</option>
                           {targetSeniorities.map((item) => (
                             <option key={item} value={item}>
                               {item}
@@ -609,6 +732,7 @@ export function AdminConsole({
                           min={10}
                           max={90}
                           value={form.durationMinutes}
+                          placeholder="25"
                           onChange={(event) =>
                             updateFormValue("durationMinutes", event.target.value)
                           }
@@ -618,24 +742,36 @@ export function AdminConsole({
 
                     <Field
                       label="Company name"
-                      badge={ocrFields.has("companyName") ? "OCR" : undefined}
+                      badge={
+                        ocrFields.has("companyName")
+                          ? autofillSource === "sample"
+                            ? "Sample"
+                            : "OCR"
+                          : undefined
+                      }
                     >
                       <Input
                         value={form.companyName}
                         onChange={(event) => updateFormValue("companyName", event.target.value)}
-                        placeholder="Acme AI"
+                        placeholder="Filled by OCR or sample"
                       />
                     </Field>
 
                     <Field
                       label="Focus areas"
                       error={errors.focusAreas}
-                      badge={ocrFields.has("focusAreas") ? "OCR" : undefined}
+                      badge={
+                        ocrFields.has("focusAreas")
+                          ? autofillSource === "sample"
+                            ? "Sample"
+                            : "OCR"
+                          : undefined
+                      }
                     >
                       <Textarea
                         value={form.focusAreas}
                         onChange={(event) => updateFormValue("focusAreas", event.target.value)}
-                        placeholder={"LLM systems\nRAG evals\nDebugging\nSystem design"}
+                        placeholder={"Filled by OCR or sample\nThen refine manually if needed"}
                         rows={5}
                       />
                     </Field>

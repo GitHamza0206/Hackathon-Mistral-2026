@@ -1,12 +1,8 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import path from "node:path";
 import { kv } from "@vercel/kv";
 import { hasKvConfig } from "@/lib/env";
 import type { CandidateSessionRecord, RoleTemplateRecord } from "@/lib/interviews";
-
-const memoryRoles = new Map<string, RoleTemplateRecord>();
-const recentRoleIds: string[] = [];
-const memorySessions = new Map<string, CandidateSessionRecord>();
-const recentSessionIds: string[] = [];
-const roleSessionIds = new Map<string, string[]>();
 
 function roleKey(id: string) {
   return `role:${id}`;
@@ -22,6 +18,83 @@ function roleSessionsKey(roleId: string) {
 
 const recentRolesKey = "roles:recent";
 const recentSessionsKey = "candidate_sessions:recent";
+const localStorageFile = path.join(process.cwd(), ".data", "storage.json");
+const localListLimit = 25;
+
+interface LocalStorageSnapshot {
+  roles: Record<string, RoleTemplateRecord>;
+  recentRoleIds: string[];
+  sessions: Record<string, CandidateSessionRecord>;
+  recentSessionIds: string[];
+  roleSessionIds: Record<string, string[]>;
+}
+
+let localSnapshotCache: LocalStorageSnapshot | null = null;
+let localSnapshotPromise: Promise<LocalStorageSnapshot> | null = null;
+let localWriteQueue = Promise.resolve();
+
+function createEmptySnapshot(): LocalStorageSnapshot {
+  return {
+    roles: {},
+    recentRoleIds: [],
+    sessions: {},
+    recentSessionIds: [],
+    roleSessionIds: {},
+  };
+}
+
+function prependUniqueId(ids: string[], id: string, limit = localListLimit) {
+  return [id, ...ids.filter((existingId) => existingId !== id)].slice(0, limit);
+}
+
+async function readLocalSnapshot() {
+  try {
+    const raw = await readFile(localStorageFile, "utf8");
+    const parsed = JSON.parse(raw) as Partial<LocalStorageSnapshot>;
+
+    return {
+      roles: parsed.roles ?? {},
+      recentRoleIds: parsed.recentRoleIds ?? [],
+      sessions: parsed.sessions ?? {},
+      recentSessionIds: parsed.recentSessionIds ?? [],
+      roleSessionIds: parsed.roleSessionIds ?? {},
+    };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return createEmptySnapshot();
+    }
+
+    throw error;
+  }
+}
+
+async function getLocalSnapshot() {
+  if (localSnapshotCache) {
+    return localSnapshotCache;
+  }
+
+  if (!localSnapshotPromise) {
+    localSnapshotPromise = readLocalSnapshot().then((snapshot) => {
+      localSnapshotCache = snapshot;
+      localSnapshotPromise = null;
+      return snapshot;
+    });
+  }
+
+  return localSnapshotPromise;
+}
+
+async function persistLocalSnapshot(snapshot: LocalStorageSnapshot) {
+  await mkdir(path.dirname(localStorageFile), { recursive: true });
+  await writeFile(localStorageFile, JSON.stringify(snapshot, null, 2), "utf8");
+}
+
+async function updateLocalSnapshot(mutator: (snapshot: LocalStorageSnapshot) => void) {
+  const snapshot = await getLocalSnapshot();
+  mutator(snapshot);
+  localWriteQueue = localWriteQueue.then(() => persistLocalSnapshot(snapshot));
+  await localWriteQueue;
+}
 
 export async function saveRoleTemplate(
   record: RoleTemplateRecord,
@@ -38,10 +111,12 @@ export async function saveRoleTemplate(
     return;
   }
 
-  memoryRoles.set(record.id, record);
-  if (shouldIndex) {
-    recentRoleIds.unshift(record.id);
-  }
+  await updateLocalSnapshot((snapshot) => {
+    snapshot.roles[record.id] = record;
+    if (shouldIndex) {
+      snapshot.recentRoleIds = prependUniqueId(snapshot.recentRoleIds, record.id);
+    }
+  });
 }
 
 export async function getRoleTemplate(id: string) {
@@ -50,7 +125,8 @@ export async function getRoleTemplate(id: string) {
     return record ?? null;
   }
 
-  return memoryRoles.get(id) ?? null;
+  const snapshot = await getLocalSnapshot();
+  return snapshot.roles[id] ?? null;
 }
 
 export async function listRecentRoleTemplates(limit = 6) {
@@ -61,9 +137,11 @@ export async function listRecentRoleTemplates(limit = 6) {
     return records.filter((record): record is RoleTemplateRecord => Boolean(record));
   }
 
-  return recentRoleIds
-    .filter((id, index) => recentRoleIds.indexOf(id) === index && index < limit)
-    .map((id) => memoryRoles.get(id))
+  const snapshot = await getLocalSnapshot();
+
+  return snapshot.recentRoleIds
+    .slice(0, limit)
+    .map((id) => snapshot.roles[id])
     .filter((record): record is RoleTemplateRecord => Boolean(record));
 }
 
@@ -84,14 +162,17 @@ export async function saveCandidateSession(
     return;
   }
 
-  memorySessions.set(record.id, record);
+  await updateLocalSnapshot((snapshot) => {
+    snapshot.sessions[record.id] = record;
 
-  if (shouldIndex) {
-    recentSessionIds.unshift(record.id);
-    const currentIds = roleSessionIds.get(record.roleId) ?? [];
-    currentIds.unshift(record.id);
-    roleSessionIds.set(record.roleId, currentIds);
-  }
+    if (shouldIndex) {
+      snapshot.recentSessionIds = prependUniqueId(snapshot.recentSessionIds, record.id);
+      snapshot.roleSessionIds[record.roleId] = prependUniqueId(
+        snapshot.roleSessionIds[record.roleId] ?? [],
+        record.id,
+      );
+    }
+  });
 }
 
 export async function getCandidateSession(id: string) {
@@ -100,7 +181,8 @@ export async function getCandidateSession(id: string) {
     return record ?? null;
   }
 
-  return memorySessions.get(id) ?? null;
+  const snapshot = await getLocalSnapshot();
+  return snapshot.sessions[id] ?? null;
 }
 
 export async function updateCandidateSession(
@@ -127,8 +209,10 @@ export async function listRecentCandidateSessions(limit = 6) {
     return records.filter((record): record is CandidateSessionRecord => Boolean(record));
   }
 
-  return recentSessionIds
-    .filter((id, index) => recentSessionIds.indexOf(id) === index && index < limit)
-    .map((id) => memorySessions.get(id))
+  const snapshot = await getLocalSnapshot();
+
+  return snapshot.recentSessionIds
+    .slice(0, limit)
+    .map((id) => snapshot.sessions[id])
     .filter((record): record is CandidateSessionRecord => Boolean(record));
 }

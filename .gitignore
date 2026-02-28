@@ -2,6 +2,7 @@
 .next-webpack-pass
 .next-prev-build
 node_modules
+.data
 .env
 .env.local
 .env.development.local
