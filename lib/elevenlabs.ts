@@ -35,14 +35,6 @@ export async function createCandidateSessionAgent(session: CandidateSessionRecor
   return response.agentId;
 }
 
-export async function createConversationSignedUrl(agentId: string) {
-  const response = await getClient().conversationalAi.conversations.getSignedUrl({
-    agentId,
-  });
-
-  return response.signedUrl;
-}
-
 export async function fetchConversationTranscript(conversationId: string) {
   const response = await getClient().conversationalAi.conversations.get(conversationId);
   return normalizeTranscript(response);

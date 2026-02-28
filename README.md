@@ -127,6 +127,7 @@ If a feature needs new visual behavior, update the system-level source of truth 
 
 - The admin console is the main orchestration surface for creating and reviewing sessions.
 - Candidate and session flows depend on browser microphone access for ElevenLabs voice interviews.
+- Candidate interview sessions use the ElevenLabs WebSocket connection path with the public `agentId` flow for stability.
 - Transcript syncing is handled during the live session and finalized again on completion to reduce loss.
 - The repository includes `scripts/test-preprocess.ts` for exercising the PDF parsing and preprocessing pipeline against real files.
 

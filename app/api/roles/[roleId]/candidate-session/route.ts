@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createCandidateSessionAgent } from "@/lib/elevenlabs";
-import { getAppBaseUrl } from "@/lib/env";
 import { fetchGitHubRepos } from "@/lib/github";
 import {
   createCandidateSessionId,
@@ -23,9 +22,14 @@ interface RouteContext {
 export async function POST(request: NextRequest, context: RouteContext) {
   const startedAt = Date.now();
   const { roleId } = await context.params;
+  console.info("[candidate-session] request:start", {
+    roleId,
+    origin: request.nextUrl.origin,
+  });
   const role = await getRoleTemplate(roleId);
 
   if (!role) {
+    console.warn("[candidate-session] request:missing-role", { roleId });
     return NextResponse.json({ error: "Role template not found." }, { status: 404 });
   }
 
@@ -97,6 +101,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const saveStartedAt = Date.now();
     await saveCandidateSession(baseSession);
     logStepDuration("Initial session save", saveStartedAt);
+    console.info("[candidate-session] session:created", {
+      sessionId,
+      roleId: role.id,
+      status: baseSession.status,
+    });
 
     let enrichedSession = baseSession;
     try {
@@ -118,23 +127,38 @@ export async function POST(request: NextRequest, context: RouteContext) {
     const agentStartedAt = Date.now();
     const agentId = await createCandidateSessionAgent(enrichedSession);
     logStepDuration("ElevenLabs agent creation", agentStartedAt);
+    console.info("[candidate-session] agent:created", {
+      sessionId,
+      agentId,
+    });
 
     const finalSaveStartedAt = Date.now();
-    await updateCandidateSession(sessionId, (current) => ({
+    const finalizedSession = await updateCandidateSession(sessionId, (current) => ({
       ...current,
       status: "agent_ready",
       agentId,
       error: undefined,
     }));
     logStepDuration("Final session update", finalSaveStartedAt);
+    console.info("[candidate-session] session:finalized", {
+      sessionId,
+      foundAfterUpdate: Boolean(finalizedSession),
+      status: finalizedSession?.status,
+      hasAgentId: Boolean(finalizedSession?.agentId),
+      sessionUrl: `/session/${sessionId}`,
+    });
     logStepDuration("Candidate session creation total", startedAt);
 
     return NextResponse.json({
       sessionId,
       agentId,
-      sessionUrl: `${getAppBaseUrl(request.nextUrl.origin)}/session/${sessionId}`,
+      sessionUrl: `/session/${sessionId}`,
     });
   } catch (error) {
+    console.error("[candidate-session] request:error", {
+      roleId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     return NextResponse.json(
       {
         error:

@@ -30,9 +30,11 @@ interface LocalStorageSnapshot {
   roleSessionIds: Record<string, string[]>;
 }
 
-let localSnapshotCache: LocalStorageSnapshot | null = null;
-let localSnapshotPromise: Promise<LocalStorageSnapshot> | null = null;
-let localWriteQueue = Promise.resolve();
+let localWriteQueue = Promise.resolve<LocalStorageSnapshot | void>(undefined);
+
+function getStorageBackend() {
+  return hasKvConfig() ? "kv" : "local-file";
+}
 
 function createEmptySnapshot(): LocalStorageSnapshot {
   return {
@@ -133,19 +135,7 @@ async function readLocalSnapshot() {
 }
 
 async function getLocalSnapshot() {
-  if (localSnapshotCache) {
-    return localSnapshotCache;
-  }
-
-  if (!localSnapshotPromise) {
-    localSnapshotPromise = readLocalSnapshot().then((snapshot) => {
-      localSnapshotCache = snapshot;
-      localSnapshotPromise = null;
-      return snapshot;
-    });
-  }
-
-  return localSnapshotPromise;
+  return readLocalSnapshot();
 }
 
 async function persistLocalSnapshot(snapshot: LocalStorageSnapshot) {
@@ -154,10 +144,15 @@ async function persistLocalSnapshot(snapshot: LocalStorageSnapshot) {
 }
 
 async function updateLocalSnapshot(mutator: (snapshot: LocalStorageSnapshot) => void) {
-  const snapshot = await getLocalSnapshot();
-  mutator(snapshot);
-  localWriteQueue = localWriteQueue.then(() => persistLocalSnapshot(snapshot));
-  await localWriteQueue;
+  const nextWrite = localWriteQueue.then(async () => {
+    const snapshot = await readLocalSnapshot();
+    mutator(snapshot);
+    await persistLocalSnapshot(snapshot);
+    return snapshot;
+  });
+
+  localWriteQueue = nextWrite.catch(() => undefined);
+  await nextWrite;
 }
 
 export async function saveRoleTemplate(
@@ -215,6 +210,15 @@ export async function saveCandidateSession(
 ) {
   const shouldIndex = options?.index ?? true;
 
+  console.info("[storage] saveCandidateSession:start", {
+    backend: getStorageBackend(),
+    sessionId: record.id,
+    roleId: record.roleId,
+    status: record.status,
+    hasAgentId: Boolean(record.agentId),
+    shouldIndex,
+  });
+
   if (hasKvConfig()) {
     await kv.set(sessionKey(record.id), record);
     if (shouldIndex) {
@@ -224,6 +228,13 @@ export async function saveCandidateSession(
       await kv.lpush(roleSessionsKey(record.roleId), record.id);
       await kv.ltrim(roleSessionsKey(record.roleId), 0, 24);
     }
+
+    console.info("[storage] saveCandidateSession:done", {
+      backend: "kv",
+      sessionId: record.id,
+      status: record.status,
+      hasAgentId: Boolean(record.agentId),
+    });
     return;
   }
 
@@ -238,16 +249,41 @@ export async function saveCandidateSession(
       );
     }
   });
+
+  console.info("[storage] saveCandidateSession:done", {
+    backend: "local-file",
+    sessionId: record.id,
+    status: record.status,
+    hasAgentId: Boolean(record.agentId),
+    localStorageFile,
+  });
 }
 
 export async function getCandidateSession(id: string) {
   if (hasKvConfig()) {
     const record = await kv.get<CandidateSessionRecord>(sessionKey(id));
+    console.info("[storage] getCandidateSession", {
+      backend: "kv",
+      sessionId: id,
+      found: Boolean(record),
+      hasAgentId: Boolean(record?.agentId),
+      status: record?.status,
+    });
     return record ?? null;
   }
 
   const snapshot = await getLocalSnapshot();
-  return snapshot.sessions[id] ?? null;
+  const record = snapshot.sessions[id] ?? null;
+  console.info("[storage] getCandidateSession", {
+    backend: "local-file",
+    sessionId: id,
+    found: Boolean(record),
+    hasAgentId: Boolean(record?.agentId),
+    status: record?.status,
+    totalLocalSessions: Object.keys(snapshot.sessions).length,
+    localStorageFile,
+  });
+  return record;
 }
 
 export async function updateCandidateSession(
@@ -257,11 +293,22 @@ export async function updateCandidateSession(
   const record = await getCandidateSession(id);
 
   if (!record) {
+    console.warn("[storage] updateCandidateSession:missing", {
+      backend: getStorageBackend(),
+      sessionId: id,
+    });
     return null;
   }
 
   const updated = updater(record);
   await saveCandidateSession(updated, { index: false });
+  console.info("[storage] updateCandidateSession:done", {
+    backend: getStorageBackend(),
+    sessionId: id,
+    previousStatus: record.status,
+    nextStatus: updated.status,
+    hasAgentId: Boolean(updated.agentId),
+  });
   return updated;
 }
 

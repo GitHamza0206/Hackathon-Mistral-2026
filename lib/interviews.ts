@@ -146,7 +146,6 @@ export interface SessionBootstrap {
   roleTitle: string;
   durationMinutes: number;
   agentId: string;
-  signedUrl?: string;
   status: CandidateSessionStatus;
   intro: string;
   conversationId?: string;

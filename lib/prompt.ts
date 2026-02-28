@@ -19,7 +19,6 @@ export function buildSessionIntro(session: CandidateSessionRecord) {
 
 export function buildSessionBootstrap(
   session: CandidateSessionRecord,
-  options?: { signedUrl?: string },
 ): SessionBootstrap {
   return {
     sessionId: session.id,
@@ -27,7 +26,6 @@ export function buildSessionBootstrap(
     roleTitle: session.roleSnapshot.roleTitle,
     durationMinutes: session.roleSnapshot.durationMinutes,
     agentId: session.agentId ?? "",
-    signedUrl: options?.signedUrl,
     status: session.status,
     intro: buildSessionIntro(session),
     conversationId: session.conversationId,

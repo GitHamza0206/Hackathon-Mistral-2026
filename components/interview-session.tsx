@@ -28,6 +28,7 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
   const [bootstrap, setBootstrap] = useState<SessionBootstrap | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [starting, setStarting] = useState(false);
   const [conversationId, setConversationId] = useState("");
   const [finalizing, setFinalizing] = useState(false);
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
@@ -118,19 +119,20 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
   }, [sessionId]);
 
   async function startInterview() {
-    if (!bootstrap) {
+    if (!bootstrap || starting || conversation.status !== "disconnected") {
       return;
     }
 
     try {
+      setStarting(true);
       setError("");
       await navigator.mediaDevices.getUserMedia({ audio: true });
-      if (!bootstrap.signedUrl) {
+      if (!bootstrap.agentId) {
         throw new Error("Unable to start the interview session.");
       }
 
       const id = await conversation.startSession({
-        signedUrl: bootstrap.signedUrl,
+        agentId: bootstrap.agentId,
         connectionType: "websocket",
       });
 
@@ -187,6 +189,8 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
           ? startError.message
           : "Unable to start the interview session.",
       );
+    } finally {
+      setStarting(false);
     }
   }
 
@@ -383,9 +387,13 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
                 className="primary-button"
                 type="button"
                 onClick={startInterview}
-                disabled={!bootstrap.signedUrl || completed || conversation.status === "connected"}
+                disabled={!bootstrap.agentId || completed || starting || conversation.status !== "disconnected"}
               >
-                {conversation.status === "connected" ? "Live now" : "Start interview"}
+                {starting || conversation.status === "connecting"
+                  ? "Connecting..."
+                  : conversation.status === "connected"
+                    ? "Live now"
+                    : "Start interview"}
               </button>
               <button
                 className="secondary-button"

@@ -80,7 +80,7 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
       }
 
       startTransition(() => {
-        router.push(body.sessionUrl ?? `/session/${body.sessionId}`);
+        router.push(body.sessionId ? `/session/${body.sessionId}` : body.sessionUrl ?? "/");
       });
     } catch (submitError) {
       setError(
