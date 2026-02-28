@@ -29,14 +29,16 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   try {
-    let transcript = payload.data.transcript ?? [];
+    const localTranscript = preferSavedTranscript(session.transcript, payload.data.transcript);
+    let transcript = localTranscript;
     const sessionEndedAt = payload.data.sessionEndedAt ?? new Date().toISOString();
 
     if (payload.data.conversationId) {
       try {
-        transcript = await fetchConversationTranscript(payload.data.conversationId);
+        const remoteTranscript = await fetchConversationTranscript(payload.data.conversationId);
+        transcript = preferSavedTranscript(localTranscript, remoteTranscript);
       } catch {
-        transcript = payload.data.transcript ?? [];
+        transcript = localTranscript;
       }
     }
 

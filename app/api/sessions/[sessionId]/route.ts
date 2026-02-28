@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { buildSessionBootstrap } from "@/lib/prompt";
+import { ensureSessionTranscript } from "@/lib/session-transcript";
 import { getCandidateSession } from "@/lib/storage";
 
 interface RouteContext {
@@ -14,5 +15,7 @@ export async function GET(_: Request, context: RouteContext) {
     return NextResponse.json({ error: "Candidate session not found." }, { status: 404 });
   }
 
-  return NextResponse.json(buildSessionBootstrap(session));
+  const hydratedSession = await ensureSessionTranscript(session);
+
+  return NextResponse.json(buildSessionBootstrap(hydratedSession));
 }

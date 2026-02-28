@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { hasAdminSession } from "@/lib/admin-auth";
 import { clipText } from "@/lib/interviews";
+import { ensureSessionTranscript } from "@/lib/session-transcript";
 import { getCandidateSession } from "@/lib/storage";
 
 interface AdminSessionPageProps {
@@ -32,15 +33,17 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
     notFound();
   }
 
+  const hydratedSession = await ensureSessionTranscript(session);
+
   return (
     <main className="results-shell">
       <section className="results-card">
         <div className="panel-heading">
           <div>
             <p className="section-label">Admin review</p>
-            <h1>{session.candidateProfile.candidateName}</h1>
+            <h1>{hydratedSession.candidateProfile.candidateName}</h1>
           </div>
-          <span className="status-pill">{session.status}</span>
+          <span className="status-pill">{hydratedSession.status}</span>
         </div>
 
         <div className="results-grid">
@@ -49,49 +52,49 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
             <dl className="detail-list">
               <div>
                 <dt>Role</dt>
-                <dd>{session.roleSnapshot.roleTitle}</dd>
+                <dd>{hydratedSession.roleSnapshot.roleTitle}</dd>
               </div>
               <div>
                 <dt>Target seniority</dt>
-                <dd>{session.roleSnapshot.targetSeniority}</dd>
+                <dd>{hydratedSession.roleSnapshot.targetSeniority}</dd>
               </div>
               <div>
                 <dt>Company</dt>
-                <dd>{session.roleSnapshot.companyName ?? "Not provided"}</dd>
+                <dd>{hydratedSession.roleSnapshot.companyName ?? "Not provided"}</dd>
               </div>
               <div>
                 <dt>Focus areas</dt>
-                <dd>{session.roleSnapshot.focusAreas.join(", ")}</dd>
+                <dd>{hydratedSession.roleSnapshot.focusAreas.join(", ")}</dd>
               </div>
               <div>
                 <dt>Conversation ID</dt>
-                <dd>{session.conversationId ?? "Pending"}</dd>
+                <dd>{hydratedSession.conversationId ?? "Pending"}</dd>
               </div>
               <div>
                 <dt>Created</dt>
-                <dd>{formatTimestamp(session.createdAt)}</dd>
+                <dd>{formatTimestamp(hydratedSession.createdAt)}</dd>
               </div>
               <div>
                 <dt>Started</dt>
-                <dd>{formatTimestamp(session.sessionStartedAt)}</dd>
+                <dd>{formatTimestamp(hydratedSession.sessionStartedAt)}</dd>
               </div>
               <div>
                 <dt>Ended</dt>
-                <dd>{formatTimestamp(session.sessionEndedAt)}</dd>
+                <dd>{formatTimestamp(hydratedSession.sessionEndedAt)}</dd>
               </div>
               <div>
                 <dt>Transcript entries</dt>
-                <dd>{String(session.transcript?.length ?? 0)}</dd>
+                <dd>{String(hydratedSession.transcript?.length ?? 0)}</dd>
               </div>
             </dl>
             <div className="notes-panel">
               <p className="section-label">Job description snapshot</p>
-              <p>{clipText(session.roleSnapshot.jobDescriptionText, 1800)}</p>
+              <p>{clipText(hydratedSession.roleSnapshot.jobDescriptionText, 1800)}</p>
             </div>
-            {session.roleSnapshot.adminNotes ? (
+            {hydratedSession.roleSnapshot.adminNotes ? (
               <div className="notes-panel">
                 <p className="section-label">Internal hiring notes</p>
-                <p>{session.roleSnapshot.adminNotes}</p>
+                <p>{hydratedSession.roleSnapshot.adminNotes}</p>
               </div>
             ) : null}
           </section>
@@ -101,39 +104,39 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
             <dl className="detail-list">
               <div>
                 <dt>Name</dt>
-                <dd>{session.candidateProfile.candidateName}</dd>
+                <dd>{hydratedSession.candidateProfile.candidateName}</dd>
               </div>
               <div>
                 <dt>Email</dt>
-                <dd>{session.candidateProfile.candidateEmail ?? "Not provided"}</dd>
+                <dd>{hydratedSession.candidateProfile.candidateEmail ?? "Not provided"}</dd>
               </div>
               <div>
                 <dt>GitHub</dt>
-                <dd>{session.candidateProfile.githubUrl}</dd>
+                <dd>{hydratedSession.candidateProfile.githubUrl}</dd>
               </div>
               <div>
                 <dt>CV file</dt>
-                <dd>{session.candidateProfile.cvFileName}</dd>
+                <dd>{hydratedSession.candidateProfile.cvFileName}</dd>
               </div>
               <div>
                 <dt>Cover letter file</dt>
-                <dd>{session.candidateProfile.coverLetterFileName ?? "Not provided"}</dd>
+                <dd>{hydratedSession.candidateProfile.coverLetterFileName ?? "Not provided"}</dd>
               </div>
             </dl>
-            {session.candidateProfile.extraNote ? (
+            {hydratedSession.candidateProfile.extraNote ? (
               <div className="notes-panel">
                 <p className="section-label">Candidate note</p>
-                <p>{session.candidateProfile.extraNote}</p>
+                <p>{hydratedSession.candidateProfile.extraNote}</p>
               </div>
             ) : null}
             <div className="notes-panel">
               <p className="section-label">CV text snapshot</p>
-              <p>{clipText(session.candidateProfile.cvText, 1500)}</p>
+              <p>{clipText(hydratedSession.candidateProfile.cvText, 1500)}</p>
             </div>
-            {session.candidateProfile.coverLetterText ? (
+            {hydratedSession.candidateProfile.coverLetterText ? (
               <div className="notes-panel">
                 <p className="section-label">Cover letter snapshot</p>
-                <p>{clipText(session.candidateProfile.coverLetterText, 1100)}</p>
+                <p>{clipText(hydratedSession.candidateProfile.coverLetterText, 1100)}</p>
               </div>
             ) : null}
           </section>
@@ -141,39 +144,39 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
 
         <section className="results-panel transcript-review">
           <p className="section-label">Scorecard</p>
-          {session.scorecard ? (
+          {hydratedSession.scorecard ? (
             <>
               <div className="score-hero">
-                <strong>{session.scorecard.overallScore}</strong>
+                <strong>{hydratedSession.scorecard.overallScore}</strong>
                 <div>
-                  <span>{session.scorecard.overallRecommendation.replace("_", " ")}</span>
-                  <p>Estimated level: {session.scorecard.seniorityEstimate}</p>
+                  <span>{hydratedSession.scorecard.overallRecommendation.replace("_", " ")}</span>
+                  <p>Estimated level: {hydratedSession.scorecard.seniorityEstimate}</p>
                 </div>
               </div>
               <div className="score-grid">
-                <Metric label="Technical depth" value={session.scorecard.technicalDepthScore} />
+                <Metric label="Technical depth" value={hydratedSession.scorecard.technicalDepthScore} />
                 <Metric
                   label="LLM product engineering"
-                  value={session.scorecard.llmProductEngineeringScore}
+                  value={hydratedSession.scorecard.llmProductEngineeringScore}
                 />
                 <Metric
                   label="Coding and debugging"
-                  value={session.scorecard.codingAndDebuggingScore}
+                  value={hydratedSession.scorecard.codingAndDebuggingScore}
                 />
-                <Metric label="System design" value={session.scorecard.systemDesignScore} />
-                <Metric label="Communication" value={session.scorecard.communicationScore} />
+                <Metric label="System design" value={hydratedSession.scorecard.systemDesignScore} />
+                <Metric label="Communication" value={hydratedSession.scorecard.communicationScore} />
               </div>
-              <p className="summary-copy">{session.scorecard.summary}</p>
-              <ReviewList label="Strengths" items={session.scorecard.strengths} />
-              <ReviewList label="Concerns" items={session.scorecard.concerns} />
+              <p className="summary-copy">{hydratedSession.scorecard.summary}</p>
+              <ReviewList label="Strengths" items={hydratedSession.scorecard.strengths} />
+              <ReviewList label="Concerns" items={hydratedSession.scorecard.concerns} />
               <ReviewList
                 label="Follow-up questions"
-                items={session.scorecard.followUpQuestions}
+                items={hydratedSession.scorecard.followUpQuestions}
               />
             </>
           ) : (
             <p className="section-copy">
-              Scorecard not available yet. {session.error ? `Latest error: ${session.error}` : ""}
+              Scorecard not available yet. {hydratedSession.error ? `Latest error: ${hydratedSession.error}` : ""}
             </p>
           )}
         </section>
@@ -189,9 +192,9 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
             </Link>
           </div>
 
-          {session.transcript && session.transcript.length > 0 ? (
+          {hydratedSession.transcript && hydratedSession.transcript.length > 0 ? (
             <div className="transcript-list">
-              {session.transcript.map((entry, index) => (
+              {hydratedSession.transcript.map((entry, index) => (
                 <article className="transcript-entry" key={`${entry.speaker}-${index}`}>
                   <span>{entry.speaker === "agent" ? "Interviewer" : "Candidate"}</span>
                   <p>{entry.text}</p>

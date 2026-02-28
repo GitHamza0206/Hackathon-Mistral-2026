@@ -1,7 +1,6 @@
 "use client";
 
 import { useConversation } from "@elevenlabs/react";
-import type { IncomingSocketEvent } from "@elevenlabs/client";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { patchElevenLabsClient } from "@/lib/elevenlabs-client-patch";
@@ -12,6 +11,13 @@ interface InterviewSessionProps {
 }
 
 patchElevenLabsClient();
+
+interface ConversationMessage {
+  event_id?: number;
+  message?: string;
+  role?: "agent" | "user";
+  source?: "ai" | "user";
+}
 
 export function InterviewSession({ sessionId }: InterviewSessionProps) {
   const [bootstrap, setBootstrap] = useState<SessionBootstrap | null>(null);
@@ -451,31 +457,20 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
   );
 }
 
-function mapMessageToTranscript(message: IncomingSocketEvent): TranscriptEntry | null {
-  const timestamp = new Date().toISOString();
+function mapMessageToTranscript(message: ConversationMessage): TranscriptEntry | null {
+  const text = message.message?.trim();
 
-  switch (message.type) {
-    case "user_transcript":
-      return {
-        speaker: "candidate",
-        text: message.user_transcription_event.user_transcript,
-        timestamp,
-      };
-    case "agent_response":
-      return {
-        speaker: "agent",
-        text: message.agent_response_event.agent_response,
-        timestamp,
-      };
-    case "agent_response_correction":
-      return {
-        speaker: "agent",
-        text: message.agent_response_correction_event.corrected_agent_response,
-        timestamp,
-      };
-    default:
-      return null;
+  if (!text) {
+    return null;
   }
+
+  const speaker = message.role === "user" || message.source === "user" ? "candidate" : "agent";
+
+  return {
+    speaker,
+    text,
+    timestamp: new Date().toISOString(),
+  };
 }
 
 function buildSyncSignature(
