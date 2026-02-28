@@ -1,5 +1,6 @@
 "use client";
 
+import { Robot } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import type { RoleBootstrap } from "@/lib/interviews";
@@ -14,6 +15,7 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPending, startTransition] = useTransition();
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
     event.preventDefault();
     setError("");
     setFieldErrors({});
+    setIsSubmitting(true);
 
     const formElement = event.currentTarget;
     const formData = new FormData(formElement);
@@ -83,8 +86,11 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
       setError(
         submitError instanceof Error ? submitError.message : "Unable to prepare your interview.",
       );
+      setIsSubmitting(false);
     }
   };
+
+  const isCreatingInterview = isSubmitting || isPending;
 
   return (
     <main className="candidate-shell">
@@ -172,8 +178,20 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
                 screening session.
               </p>
 
-              <button className="primary-button" type="submit" disabled={isPending}>
-                {isPending ? "Preparing your interview..." : "Prepare interview"}
+              <button className="primary-button" type="submit" disabled={isCreatingInterview}>
+                {isCreatingInterview ? (
+                  <>
+                    <span aria-hidden="true" className="agent-spinner">
+                      <span className="agent-spinner-ring" />
+                      <span className="agent-spinner-core">
+                        <Robot weight="fill" />
+                      </span>
+                    </span>
+                    Spinning up your agent...
+                  </>
+                ) : (
+                  "Prepare interview"
+                )}
               </button>
             </form>
           </>

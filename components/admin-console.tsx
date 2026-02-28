@@ -8,6 +8,7 @@ import {
   FileArrowUp,
   Files,
   ListChecks,
+  Stack,
   Sparkle,
   SquaresFour,
   WarningCircle,
@@ -93,7 +94,7 @@ backend failures, and can make practical tradeoffs around quality, latency, and 
   ],
 };
 
-type NavView = "interviews" | "candidates";
+type NavView = "interviews" | "candidates" | "sessions";
 type CandidatesView = "table" | "kanban";
 type OcrStatus = "idle" | "processing" | "success" | "sample" | "error";
 type OcrField = "roleTitle" | "companyName" | "targetSeniority" | "focusAreas";
@@ -507,6 +508,10 @@ export function AdminConsole({
                 <Files className="size-4" weight="duotone" />
                 Candidates
               </TabsTrigger>
+              <TabsTrigger value="sessions" className="min-w-36">
+                <Stack className="size-4" weight="duotone" />
+                Sessions
+              </TabsTrigger>
             </TabsList>
             <p className="text-sm text-muted-foreground">
               OCR-first setup keeps the editable role form grounded in the uploaded JD.
@@ -867,6 +872,25 @@ export function AdminConsole({
               </CardContent>
             </Card>
           </TabsContent>
+
+          <TabsContent value="sessions" className="mt-0">
+            <Card className="border-border/70 bg-card/88">
+              <CardHeader className="gap-3">
+                <div className="space-y-2">
+                  <Badge variant="subtle">Session records</Badge>
+                  <CardTitle>Stored interview sessions</CardTitle>
+                  <CardDescription>
+                    Every created interview session is stored automatically and listed here for
+                    quick review.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+
+              <CardContent>
+                <SessionsTable sessions={recentSessions} />
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
       </div>
     </main>
@@ -1068,6 +1092,72 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
           </div>
         </div>
       ))}
+    </div>
+  );
+}
+
+function SessionsTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
+  if (sessions.length === 0) {
+    return <p className="text-sm text-muted-foreground">No sessions created yet.</p>;
+  }
+
+  return (
+    <div className="overflow-auto rounded-[calc(var(--radius)+0.2rem)] border border-border/70 bg-background/70">
+      <Table>
+        <TableHeader>
+          <TableRow className="border-border/80">
+            <TableHead className="font-semibold text-foreground">Session</TableHead>
+            <TableHead className="font-semibold text-foreground">Candidate</TableHead>
+            <TableHead className="font-semibold text-foreground">Interview</TableHead>
+            <TableHead className="font-semibold text-foreground">Created</TableHead>
+            <TableHead className="font-semibold text-foreground">Status</TableHead>
+            <TableHead className="text-right font-semibold text-foreground">Open</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {sessions.map((session) => (
+            <TableRow key={session.id} className="border-border/70">
+              <TableCell>
+                <div>
+                  <p className="font-mono text-xs text-foreground">{session.id}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {session.agentId ? "Agent created" : "Agent pending"}
+                  </p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <div>
+                  <p className="font-medium text-foreground">
+                    {session.candidateProfile.candidateName}
+                  </p>
+                  <p className="font-mono text-xs text-muted-foreground">
+                    {session.candidateProfile.githubUrl.replace("https://github.com/", "@")}
+                  </p>
+                </div>
+              </TableCell>
+              <TableCell>
+                <p className="font-medium text-foreground">{session.roleSnapshot.roleTitle}</p>
+                <p className="text-xs text-muted-foreground">
+                  {session.roleSnapshot.targetSeniority}
+                </p>
+              </TableCell>
+              <TableCell>
+                <span className="font-mono text-sm text-foreground">
+                  {new Date(session.createdAt).toLocaleString()}
+                </span>
+              </TableCell>
+              <TableCell>
+                <StatusBadge status={session.status} />
+              </TableCell>
+              <TableCell className="text-right">
+                <Button asChild size="sm" variant="outline">
+                  <Link href={`/admin/sessions/${session.id}`}>Open</Link>
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }

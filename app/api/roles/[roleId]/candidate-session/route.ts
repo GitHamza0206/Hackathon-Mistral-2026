@@ -21,6 +21,7 @@ interface RouteContext {
 }
 
 export async function POST(request: NextRequest, context: RouteContext) {
+  const startedAt = Date.now();
   const { roleId } = await context.params;
   const role = await getRoleTemplate(roleId);
 
@@ -58,12 +59,21 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   try {
+    const cvStartedAt = Date.now();
     const cvParsed = await parseUploadedPdf(cvFile as File, "CV PDF");
+    logStepDuration("CV OCR", cvStartedAt);
+
+    const coverLetterStartedAt = Date.now();
     const coverLetterParsed = coverLetterFile
       ? await parseUploadedPdf(coverLetterFile, "Cover letter PDF")
       : null;
+    if (coverLetterFile) {
+      logStepDuration("Cover letter OCR", coverLetterStartedAt);
+    }
 
+    const githubStartedAt = Date.now();
     const repos = await fetchGitHubRepos(payload.data.githubUrl);
+    logStepDuration("GitHub enrichment", githubStartedAt);
 
     const candidateProfile: CandidateProfileRecord = {
       ...payload.data,
@@ -84,28 +94,40 @@ export async function POST(request: NextRequest, context: RouteContext) {
       candidateProfile,
     };
 
+    const saveStartedAt = Date.now();
     await saveCandidateSession(baseSession);
+    logStepDuration("Initial session save", saveStartedAt);
 
     let enrichedSession = baseSession;
     try {
+      const strategyStartedAt = Date.now();
       const strategy = await generateInterviewStrategy(baseSession, repos);
+      logStepDuration("Interview preprocessing", strategyStartedAt);
       enrichedSession = { ...baseSession, interviewStrategy: strategy };
+
+      const strategySaveStartedAt = Date.now();
       await updateCandidateSession(sessionId, (current) => ({
         ...current,
         interviewStrategy: strategy,
       }));
+      logStepDuration("Strategy save", strategySaveStartedAt);
     } catch (error) {
       console.warn("Preprocessing failed, continuing without interview strategy:", error);
     }
 
+    const agentStartedAt = Date.now();
     const agentId = await createCandidateSessionAgent(enrichedSession);
+    logStepDuration("ElevenLabs agent creation", agentStartedAt);
 
+    const finalSaveStartedAt = Date.now();
     await updateCandidateSession(sessionId, (current) => ({
       ...current,
       status: "agent_ready",
       agentId,
       error: undefined,
     }));
+    logStepDuration("Final session update", finalSaveStartedAt);
+    logStepDuration("Candidate session creation total", startedAt);
 
     return NextResponse.json({
       sessionId,
@@ -122,6 +144,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
       { status: 500 },
     );
+  } finally {
+    logStepDuration("Candidate session request lifetime", startedAt);
   }
 }
 
@@ -139,4 +163,8 @@ function hasProvidedValue(value: FormDataEntryValue | null) {
   }
 
   return typeof value === "string" ? value.trim().length > 0 : false;
+}
+
+function logStepDuration(label: string, startedAt: number) {
+  console.info(`[candidate-session] ${label}: ${Date.now() - startedAt}ms`);
 }

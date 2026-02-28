@@ -17,7 +17,12 @@ Optional:
 
 ```bash
 MISTRAL_MODEL=mistral-large-latest
+GITHUB_TOKEN=... # recommended if you use GitHub profile enrichment
+ENABLE_GITHUB_ENRICHMENT=true
 ```
+
+`GITHUB_API_TOKEN` is also supported as an alias for `GITHUB_TOKEN`.
+GitHub enrichment is disabled by default. Set `ENABLE_GITHUB_ENRICHMENT=true` to turn it back on.
 
 ## Local development
 

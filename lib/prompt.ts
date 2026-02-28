@@ -32,45 +32,58 @@ export function buildSessionBootstrap(session: CandidateSessionRecord): SessionB
 interface TechnicalQuestionExample {
   title: string;
   keywords: string[];
-  question: string;
+  broadQuestion: string;
+  followUpQuestion: string;
 }
 
 const preferredTechnicalQuestionExamples: TechnicalQuestionExample[] = [
   {
     title: "LLM feature launch",
     keywords: ["llm", "prompt", "ai", "agent", "inference"],
-    question:
-      "Tell me about a production LLM feature you shipped. What was the architecture, what tradeoffs did you make, and what broke once real users started using it?",
+    broadQuestion:
+      "Tell me about a production LLM feature you shipped. What was the problem and how did you approach building it?",
+    followUpQuestion:
+      "What tradeoffs did you make in the architecture, and what broke or surprised you once real users started using it?",
   },
   {
     title: "RAG system design",
     keywords: ["rag", "retrieval", "search", "embedding", "vector"],
-    question:
-      "Design a RAG system for a real product. How would you handle chunking, retrieval quality, evaluation, and failure cases when the retrieved context is incomplete or misleading?",
+    broadQuestion:
+      "Walk me through how you would design a RAG system for a real product. Where do you start?",
+    followUpQuestion:
+      "How would you handle chunking strategy, retrieval quality, and failure cases where the retrieved context is incomplete or misleading?",
   },
   {
     title: "Tool use and orchestration",
     keywords: ["tool", "orchestration", "workflow", "function", "agentic"],
-    question:
-      "Describe a workflow where an AI system had to use tools or external APIs. How did you decide what the model should do versus what the deterministic application layer should do?",
+    broadQuestion:
+      "Tell me about a workflow where an AI system had to use tools or call external APIs. How did you structure it?",
+    followUpQuestion:
+      "How did you decide what the model should handle versus what the deterministic application layer should own?",
   },
   {
     title: "Debugging and reliability",
     keywords: ["debug", "incident", "reliability", "observability", "latency"],
-    question:
-      "Walk me through a difficult production incident involving an AI or backend system. How did you isolate the root cause, and what did you change afterward to prevent the same issue?",
+    broadQuestion:
+      "Walk me through a difficult production incident involving an AI or backend system. What happened?",
+    followUpQuestion:
+      "How did you isolate the root cause, and what did you change afterward to prevent the same issue?",
   },
   {
     title: "System design and scaling",
     keywords: ["scale", "system", "distributed", "backend", "architecture"],
-    question:
-      "If this product suddenly had ten times more users, which parts of the system would you inspect first, and what scaling or resilience changes would you make?",
+    broadQuestion:
+      "If the system you built suddenly had ten times more users, where would you start looking for problems?",
+    followUpQuestion:
+      "What specific scaling or resilience changes would you prioritize, and why?",
   },
   {
     title: "Evaluation strategy",
     keywords: ["evaluation", "eval", "quality", "benchmark", "testing"],
-    question:
-      "How would you evaluate whether an AI feature is actually good enough for production? Walk me through the metrics, offline checks, and live signals you would trust.",
+    broadQuestion:
+      "How do you think about evaluating whether an AI feature is ready for production?",
+    followUpQuestion:
+      "Walk me through the specific metrics, offline checks, and live signals you would actually trust to make that call.",
   },
 ];
 
@@ -101,7 +114,7 @@ function pickOpeningTechnicalQuestion(session: CandidateSessionRecord) {
       example.keywords.some((keyword) => corpus.includes(keyword)),
     ) ?? preferredTechnicalQuestionExamples[0];
 
-  return match.question;
+  return match.broadQuestion;
 }
 
 export function buildCandidateAgentFirstMessage(session: CandidateSessionRecord) {
@@ -157,8 +170,11 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
       "Key topics to cover:",
       ...topicLines,
       "",
-      "Suggested questions (adapt based on conversation flow):",
-      ...strategy.specificQuestions.map((q) => `  - ${q}`),
+      "Suggested questions - always split into two turns:",
+      "- Each topic should start with a broad opening question.",
+      "- Wait for the candidate's answer before asking the deeper follow-up.",
+      "- Adapt the follow-up based on what they actually said.",
+      ...strategy.specificQuestions.map((q) => `  - Topic anchor: ${q}`),
       "",
       "CV claims to verify (probe these during the interview):",
       ...strategy.cvClaimsToVerify.map((c) => `  - ${c}`),
@@ -197,16 +213,20 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     "- Do not begin by asking the candidate for a general self-introduction or summary of recent work unless they fail to answer the first technical question and you need to recover the conversation.",
     "",
     "Pacing and pause guidance:",
-    "- Speak slowly.",
+    "- Speak slowly and stay calm throughout.",
     "- Keep sentences short and clear.",
     "- Leave brief pauses between major statements, especially in the opening.",
-    "- Sound calm, deliberate, and conversational.",
+    "- Ease into technical depth gradually. The first question on each topic should feel like an open invitation, not a test.",
+    "- If a candidate answers confidently and with detail, the follow-up can go deeper. If they seem uncertain or vague, stay at the same level before probing further.",
     "",
     "Interview behavior:",
-    "- Ask one question at a time.",
-    "- Start directly with a technical question after the opening.",
+    "- Ask one question at a time. Never stack multiple sub-questions into a single prompt.",
+    "- Start directly with a broad technical question after the opening. Do not ask for a general self-introduction first.",
+    "- Always ask the broad version of a question before narrowing to implementation specifics or tradeoffs.",
+    "- Split every technical topic into two turns. First let the candidate frame their experience, then follow up based on what they actually said.",
+    "- Acknowledge what the candidate said briefly before moving to the follow-up. Keep it natural and conversational.",
     "- Use the candidate materials to choose relevant follow-up questions.",
-    "- Probe when answers are vague or not supported by the submitted materials.",
+    "- Probe when answers are vague or not supported by the submitted materials, but do so gently. Ask for clarification before challenging.",
     "- Prefer implementation realism, debugging, systems thinking, and tradeoff reasoning over trivia.",
     "- Adapt the difficulty to the stated target seniority and the evidence from the conversation.",
     "- Use the preferred technical question examples as the default starting patterns, then adapt the order and follow-up depth to the role, job description, CV, cover letter, GitHub profile, and live conversation.",
@@ -215,15 +235,17 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     "- Close politely and say the hiring team will review the results.",
     "",
     "Technical questioning sequence:",
-    "- Open with the scripted introduction, then move directly into one technical question.",
-    "- Keep the first three questions technical unless the candidate is blocked and needs clarification.",
-    "- After each answer, ask a sharper follow-up that tests implementation detail, debugging judgment, or production tradeoffs.",
+    "- Open with the scripted introduction, then move directly into one broad technical question.",
+    "- Keep the first three topics technical. For each topic, ask the broad question first, then follow up one level deeper after the candidate responds.",
+    "- After each follow-up, transition naturally to the next topic rather than immediately stacking another hard question.",
     "- If one preferred example is not relevant, pick the closest alternative instead of switching to generic behavioral questions.",
     "",
-    "Preferred technical question patterns/examples:",
-    ...preferredTechnicalQuestionExamples.map(
-      (example) => `- ${example.title}: ${example.question}`,
-    ),
+    "Preferred technical question patterns:",
+    ...preferredTechnicalQuestionExamples.flatMap((example) => [
+      `- ${example.title}:`,
+      `  - Broad: ${example.broadQuestion}`,
+      `  - Follow-up: ${example.followUpQuestion}`,
+    ]),
     "",
     "Coverage areas:",
     "- LLM engineering fundamentals and production tradeoffs",
@@ -235,8 +257,9 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     "",
     "Hidden evaluation guidance:",
     "- Look for alignment with the job requirement, not just general competence.",
-    "- Challenge resume and GitHub claims when they sound overstated or underspecified.",
+    "- Challenge resume and GitHub claims when they sound overstated or underspecified, but do so conversationally, not confrontationally.",
     "- Reward specific production experience, engineering judgment, and ownership.",
+    "- A candidate who explains their reasoning clearly and acknowledges uncertainty is more valuable than one who sounds confident but stays surface-level.",
   );
 
   return base.filter(Boolean).join("\n");

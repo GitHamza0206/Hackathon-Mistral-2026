@@ -5,7 +5,7 @@ import { listRecentCandidateSessions, listRecentRoleTemplates } from "@/lib/stor
 export default async function Home() {
   const isAuthenticated = await hasAdminSession();
   const recentRoles = isAuthenticated ? await listRecentRoleTemplates() : [];
-  const recentSessions = isAuthenticated ? await listRecentCandidateSessions() : [];
+  const recentSessions = isAuthenticated ? await listRecentCandidateSessions(25) : [];
 
   return (
     <>

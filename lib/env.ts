@@ -30,3 +30,7 @@ export function getMistralModel() {
 export function getMistralOcrModel() {
   return getOptionalEnv("MISTRAL_OCR_MODEL") ?? "mistral-ocr-latest";
 }
+
+export function isGitHubEnrichmentEnabled() {
+  return getOptionalEnv("ENABLE_GITHUB_ENRICHMENT") === "true";
+}
