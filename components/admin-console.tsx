@@ -8,7 +8,6 @@ import {
   FileArrowUp,
   Files,
   ListChecks,
-  Stack,
   Sparkle,
   SquaresFour,
   WarningCircle,
@@ -22,6 +21,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import {
   Table,
@@ -94,7 +102,7 @@ backend failures, and can make practical tradeoffs around quality, latency, and 
   ],
 };
 
-type NavView = "interviews" | "candidates" | "sessions";
+type NavView = "interviews" | "candidates";
 type CandidatesView = "table" | "kanban";
 type OcrStatus = "idle" | "processing" | "success" | "sample" | "error";
 type OcrField = "roleTitle" | "companyName" | "targetSeniority" | "focusAreas";
@@ -123,6 +131,7 @@ export function AdminConsole({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [activeView, setActiveView] = useState<NavView>("interviews");
   const [candidatesView, setCandidatesView] = useState<CandidatesView>("table");
   const [createdUrl, setCreatedUrl] = useState<string | null>(null);
@@ -429,6 +438,7 @@ export function AdminConsole({
       setCreatedUrl(body.candidateApplyUrl);
       setForm(defaultForm);
       clearOcrState();
+      setActiveView("interviews");
       router.refresh();
     } catch (error) {
       setSubmitError(
@@ -465,24 +475,30 @@ export function AdminConsole({
 
   return (
     <main className="min-h-screen bg-background text-foreground">
+      <Dialog
+        open={isCreateDialogOpen}
+        onOpenChange={(open) => {
+          if (!open && !submitting) {
+            resetRoleSetup();
+          }
+          setIsCreateDialogOpen(open);
+        }}
+      >
       <div className="mx-auto flex w-full max-w-7xl flex-col gap-8 px-4 py-8 sm:px-6 lg:px-8">
         <Card className="overflow-hidden border-border/70 bg-card/90">
           <CardHeader className="relative gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(99,102,241,0.16),transparent_32%),radial-gradient(circle_at_82%_18%,rgba(167,139,250,0.16),transparent_24%)]" />
-            <div className="relative space-y-4">
-              <Badge variant="orange">Admin workspace</Badge>
-              <div className="space-y-3">
-                <CardTitle className="font-(family-name:--font-display) text-4xl font-semibold tracking-tight sm:text-5xl">
-                  Role templates with OCR-ready intake.
+            <div className="relative space-y-2">
+              <div className="space-y-1">
+                <CardTitle className="text-2xl font-semibold tracking-tight sm:text-3xl">
+                  Interviews
                 </CardTitle>
-                <CardDescription className="max-w-3xl text-sm sm:text-base">
-                  Upload the job description once, review the inferred role setup, and publish a
-                  candidate interview link without re-entering the basics by hand.
+                <CardDescription className="max-w-2xl text-sm">
+                  Create interview links and review candidate activity.
                 </CardDescription>
               </div>
             </div>
 
-            <div className="relative grid gap-3 sm:grid-cols-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               <MetricCard label="Active templates" value={String(recentRoles.length)} />
               <MetricCard label="Candidate sessions" value={String(recentSessions.length)} />
               <MetricCard
@@ -508,339 +524,25 @@ export function AdminConsole({
                 <Files className="size-4" weight="duotone" />
                 Candidates
               </TabsTrigger>
-              <TabsTrigger value="sessions" className="min-w-36">
-                <Stack className="size-4" weight="duotone" />
-                Sessions
-              </TabsTrigger>
             </TabsList>
-            <p className="text-sm text-muted-foreground">
-              OCR-first setup keeps the editable role form grounded in the uploaded JD.
-            </p>
+            <p className="text-sm text-muted-foreground">Create links and review candidates.</p>
           </div>
 
           <TabsContent value="interviews" className="mt-0">
-            <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
-              <Card className="h-fit border-border/70 bg-card/85">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="space-y-2">
-                      <Badge variant="subtle">Job description</Badge>
-                      <CardTitle className="flex items-center gap-3">
-                        <span className="rounded-2xl border border-border/70 bg-muted/30 p-3">
-                          <FileArrowUp className="size-5 text-primary" weight="duotone" />
-                        </span>
-                        Upload and extract
-                      </CardTitle>
-                      <CardDescription>
-                        PDF only. OCR starts immediately after upload and fills the editable role
-                        setup before you create the link.
-                      </CardDescription>
-                    </div>
-
-                    {ocrStatus === "success" ? <Badge variant="orange">Processed with Mistral OCR</Badge> : null}
-                    {ocrStatus === "sample" ? <Badge variant="subtle">Using sample fallback</Badge> : null}
-                  </div>
-                </CardHeader>
-
-                <CardContent className="grid gap-5">
-                  <input
-                    ref={inputRef}
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    className="hidden"
-                    onChange={handleJobDescriptionFileChange}
-                  />
-
-                  <div className="rounded-[calc(var(--radius)+0.4rem)] border border-dashed border-border bg-muted/20 p-5">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <Button type="button" onClick={openJobDescriptionPicker}>
-                        <FileArrowUp className="size-4" weight="duotone" />
-                        {jobDescriptionFileName ? "Replace PDF" : "Upload job description"}
-                      </Button>
-                      <Button type="button" variant="secondary" onClick={handleUseSample}>
-                        Use sample
-                      </Button>
-                      <Badge variant="subtle">Review before save</Badge>
-                    </div>
-
-                    <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                      Start with a PDF when OCR is working. If extraction is unstable, use the
-                      sample fallback and keep testing the flow.
-                    </p>
-
-                    {errors.jobDescriptionPdf ? (
-                      <p className="mt-3 text-sm text-destructive">{errors.jobDescriptionPdf}</p>
-                    ) : null}
-                  </div>
-
-                  <div className="grid gap-3 rounded-[calc(var(--radius)+0.25rem)] border border-border/70 bg-background/70 p-4">
-                    <StatusRow
-                      label="Upload state"
-                      value={
-                        ocrStatus === "idle"
-                          ? "Waiting for a PDF"
-                          : ocrStatus === "processing"
-                            ? "Processing with Mistral OCR..."
-                            : ocrStatus === "sample"
-                              ? "Sample fallback loaded"
-                            : ocrStatus === "success"
-                              ? "OCR completed"
-                              : "Processing failed"
-                      }
-                    />
-                    <StatusRow
-                      label="File"
-                      value={jobDescriptionFileName || "No PDF selected"}
-                      mono={Boolean(jobDescriptionFileName)}
-                    />
-                    <StatusRow
-                      label="Autofill coverage"
-                      value={
-                        ocrFields.size > 0
-                          ? `${ocrFields.size} field${ocrFields.size > 1 ? "s" : ""} tagged as ${autofillSource === "sample" ? "sample" : "OCR"}`
-                          : "No fields tagged yet"
-                      }
-                    />
-                  </div>
-
-                  {ocrStatus === "processing" ? (
-                    <div className="rounded-[calc(var(--radius)+0.25rem)] border border-primary/20 bg-primary/8 p-4">
-                      <p className="text-sm font-medium text-primary">Running OCR and role extraction</p>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        The uploader is reading the document and grounding the role fields in the JD
-                        text before you save anything.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  {ocrStatus === "success" ? (
-                    <div className="grid gap-3 rounded-[calc(var(--radius)+0.25rem)] border border-primary/20 bg-primary/8 p-4">
-                      <p className="text-sm font-medium text-primary">OCR complete</p>
-                      <p className="text-sm text-muted-foreground">
-                        Review the highlighted fields on the right. Editing any of them removes the
-                        OCR badge.
-                      </p>
-                      {ocrWarnings.length > 0 ? (
-                        <div className="grid gap-2 rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-background/80 p-3">
-                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                            <WarningCircle className="size-4 text-primary" weight="duotone" />
-                            Extraction warnings
-                          </div>
-                          <ul className="grid gap-2 text-sm leading-6 text-muted-foreground">
-                            {ocrWarnings.map((warning) => (
-                              <li key={warning}>{warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-
-                  {ocrStatus === "error" ? (
-                    <div className="rounded-[calc(var(--radius)+0.25rem)] border border-destructive/20 bg-destructive/8 p-4">
-                      <p className="text-sm font-medium text-destructive">OCR failed</p>
-                      <p className="mt-1 text-sm text-muted-foreground">{ocrError}</p>
-                    </div>
-                  ) : null}
-
-                  {ocrStatus === "sample" ? (
-                    <div className="grid gap-3 rounded-[calc(var(--radius)+0.25rem)] border border-amber-200/80 bg-amber-50/80 p-4">
-                      <p className="text-sm font-medium text-amber-700">Sample fallback loaded</p>
-                      <p className="text-sm text-amber-700/80">
-                        The fields on the right are populated from a built-in sample so you can
-                        keep testing even if OCR is currently failing.
-                      </p>
-                      {ocrWarnings.length > 0 ? (
-                        <div className="grid gap-2 rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-background/80 p-3">
-                          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-                            <WarningCircle className="size-4 text-primary" weight="duotone" />
-                            Sample notes
-                          </div>
-                          <ul className="grid gap-2 text-sm leading-6 text-muted-foreground">
-                            {ocrWarnings.map((warning) => (
-                              <li key={warning}>{warning}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-
-              <Card className="border-border/70 bg-card/88">
-                <CardHeader>
-                  <Badge variant="subtle" className="w-fit">
-                    Role setup
-                  </Badge>
-                  <CardTitle>Review and publish the candidate flow</CardTitle>
-                  <CardDescription>
-                    The form starts empty. OCR or the sample fallback can populate the JD-backed
-                    fields, while duration and admin notes remain manual.
-                  </CardDescription>
-                </CardHeader>
-
-                <CardContent className="grid gap-6">
-                  <form className="grid gap-5" onSubmit={handleCreate}>
-                    <Field
-                      label="Role title"
-                      error={errors.roleTitle}
-                      badge={
-                        ocrFields.has("roleTitle")
-                          ? autofillSource === "sample"
-                            ? "Sample"
-                            : "OCR"
-                          : undefined
-                      }
-                    >
-                      <Input
-                        value={form.roleTitle}
-                        onChange={(event) => updateFormValue("roleTitle", event.target.value)}
-                        placeholder="Filled by OCR or sample"
-                      />
-                    </Field>
-
-                    <div className="grid gap-5 sm:grid-cols-2">
-                      <Field
-                        label="Target seniority"
-                        error={errors.targetSeniority}
-                        badge={
-                          ocrFields.has("targetSeniority")
-                            ? autofillSource === "sample"
-                              ? "Sample"
-                              : "OCR"
-                            : undefined
-                        }
-                      >
-                        <select
-                          className="flex h-12 w-full rounded-[calc(var(--radius)+0.15rem)] border border-input bg-input/50 px-4 py-3 text-sm text-foreground shadow-sm outline-none transition-[border-color,box-shadow,transform] focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/15 focus-visible:-translate-y-px"
-                          value={form.targetSeniority}
-                          onChange={(event) =>
-                            updateFormValue(
-                              "targetSeniority",
-                              event.target.value as TargetSeniority,
-                            )
-                          }
-                        >
-                          <option value="">Select seniority</option>
-                          {targetSeniorities.map((item) => (
-                            <option key={item} value={item}>
-                              {item}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-
-                      <Field label="Duration (min)" error={errors.durationMinutes}>
-                        <Input
-                          type="number"
-                          min={10}
-                          max={90}
-                          value={form.durationMinutes}
-                          placeholder="25"
-                          onChange={(event) =>
-                            updateFormValue("durationMinutes", event.target.value)
-                          }
-                        />
-                      </Field>
-                    </div>
-
-                    <Field
-                      label="Company name"
-                      badge={
-                        ocrFields.has("companyName")
-                          ? autofillSource === "sample"
-                            ? "Sample"
-                            : "OCR"
-                          : undefined
-                      }
-                    >
-                      <Input
-                        value={form.companyName}
-                        onChange={(event) => updateFormValue("companyName", event.target.value)}
-                        placeholder="Filled by OCR or sample"
-                      />
-                    </Field>
-
-                    <Field
-                      label="Focus areas"
-                      error={errors.focusAreas}
-                      badge={
-                        ocrFields.has("focusAreas")
-                          ? autofillSource === "sample"
-                            ? "Sample"
-                            : "OCR"
-                          : undefined
-                      }
-                    >
-                      <Textarea
-                        value={form.focusAreas}
-                        onChange={(event) => updateFormValue("focusAreas", event.target.value)}
-                        placeholder={"Filled by OCR or sample\nThen refine manually if needed"}
-                        rows={5}
-                      />
-                    </Field>
-
-                    <Field label="Admin notes">
-                      <Textarea
-                        value={form.adminNotes}
-                        onChange={(event) => updateFormValue("adminNotes", event.target.value)}
-                        placeholder="Optional hiring notes or internal guidance for the screener."
-                        rows={4}
-                      />
-                    </Field>
-
-                    {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
-
-                    <div className="flex flex-wrap gap-3">
-                      <Button type="submit" disabled={submitting}>
-                        {submitting ? "Creating..." : "Create interview link"}
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        disabled={submitting}
-                        onClick={resetRoleSetup}
-                      >
-                        Reset form
-                      </Button>
-                    </div>
-                  </form>
-
-                  {createdUrl ? (
-                    <div className="rounded-[calc(var(--radius)+0.35rem)] border border-primary/20 bg-primary/8 p-4">
-                      <p className="text-sm font-medium text-primary">Candidate interview link</p>
-                      <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-                        <Input readOnly value={createdUrl} className="font-mono text-xs sm:text-sm" />
-                        <div className="flex gap-3">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            onClick={() => navigator.clipboard.writeText(createdUrl)}
-                          >
-                            Copy
-                          </Button>
-                          <Button asChild>
-                            <Link href={createdUrl} target="_blank" rel="noopener noreferrer">
-                              Open link
-                            </Link>
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : null}
-                </CardContent>
-              </Card>
-            </div>
-
-            <Card className="mt-6 border-border/70 bg-card/88">
+            <Card className="border-border/70 bg-card/88">
               <CardHeader className="gap-3">
-                <div className="space-y-2">
-                  <Badge variant="subtle">Published links</Badge>
-                  <CardTitle>Past interview links</CardTitle>
-                  <CardDescription>
-                    Reopen or copy previously generated candidate interview links to resend them.
-                  </CardDescription>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="space-y-2">
+                    <Badge variant="subtle">Published links</Badge>
+                    <CardTitle>Interview links</CardTitle>
+                    <CardDescription>
+                      Reopen or copy previously generated candidate interview links.
+                    </CardDescription>
+                  </div>
+
+                  <Button type="button" onClick={() => setIsCreateDialogOpen(true)}>
+                    Create interview
+                  </Button>
                 </div>
               </CardHeader>
 
@@ -889,26 +591,281 @@ export function AdminConsole({
             </Card>
           </TabsContent>
 
-          <TabsContent value="sessions" className="mt-0">
-            <Card className="border-border/70 bg-card/88">
-              <CardHeader className="gap-3">
-                <div className="space-y-2">
-                  <Badge variant="subtle">Session records</Badge>
-                  <CardTitle>Stored interview sessions</CardTitle>
-                  <CardDescription>
-                    Every created interview session is stored automatically and listed here for
-                    quick review.
-                  </CardDescription>
-                </div>
-              </CardHeader>
-
-              <CardContent>
-                <SessionsTable sessions={recentSessions} />
-              </CardContent>
-            </Card>
-          </TabsContent>
         </Tabs>
       </div>
+      <DialogContent className="p-0">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="application/pdf,.pdf"
+          className="hidden"
+          onChange={handleJobDescriptionFileChange}
+        />
+
+        <div className="grid max-h-[88vh] gap-0 overflow-y-auto lg:grid-cols-[0.88fr_1.12fr]">
+          <div className="border-b border-border/70 bg-muted/20 p-6 lg:border-b-0 lg:border-r">
+            <DialogHeader>
+              <DialogTitle>Create interview</DialogTitle>
+              <DialogDescription>
+                Upload a job description PDF, review the extracted fields, then publish the link.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-6 grid gap-5">
+              <div className="rounded-[calc(var(--radius)+0.4rem)] border border-dashed border-border bg-background/70 p-5">
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button type="button" onClick={openJobDescriptionPicker}>
+                    <FileArrowUp className="size-4" weight="duotone" />
+                    {jobDescriptionFileName ? "Replace PDF" : "Upload PDF"}
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={handleUseSample}>
+                    Use sample
+                  </Button>
+                </div>
+
+                <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                  PDF only. If OCR fails, use the sample fallback to keep testing the flow.
+                </p>
+
+                {errors.jobDescriptionPdf ? (
+                  <p className="mt-3 text-sm text-destructive">{errors.jobDescriptionPdf}</p>
+                ) : null}
+              </div>
+
+              <div className="grid gap-3 rounded-[calc(var(--radius)+0.25rem)] border border-border/70 bg-background/70 p-4">
+                <StatusRow
+                  label="Status"
+                  value={
+                    ocrStatus === "idle"
+                      ? "Waiting for a PDF"
+                      : ocrStatus === "processing"
+                        ? "Processing with OCR..."
+                        : ocrStatus === "sample"
+                          ? "Sample loaded"
+                          : ocrStatus === "success"
+                            ? "Ready"
+                            : "Failed"
+                  }
+                />
+                <StatusRow
+                  label="File"
+                  value={jobDescriptionFileName || "No PDF selected"}
+                  mono={Boolean(jobDescriptionFileName)}
+                />
+                <StatusRow
+                  label="Autofill"
+                  value={
+                    ocrFields.size > 0
+                      ? `${ocrFields.size} field${ocrFields.size > 1 ? "s" : ""}`
+                      : "No fields yet"
+                  }
+                />
+              </div>
+
+              {ocrStatus === "processing" ? (
+                <div className="rounded-[calc(var(--radius)+0.25rem)] border border-primary/20 bg-primary/8 p-4">
+                  <p className="text-sm font-medium text-primary">Processing</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    The PDF is being parsed and mapped into the role fields.
+                  </p>
+                </div>
+              ) : null}
+
+              {ocrStatus === "success" ? (
+                <div className="grid gap-3 rounded-[calc(var(--radius)+0.25rem)] border border-primary/20 bg-primary/8 p-4">
+                  <p className="text-sm font-medium text-primary">OCR complete</p>
+                  {ocrWarnings.length > 0 ? (
+                    <div className="grid gap-2 rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-background/80 p-3">
+                      <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+                        <WarningCircle className="size-4 text-primary" weight="duotone" />
+                        Warnings
+                      </div>
+                      <ul className="grid gap-2 text-sm leading-6 text-muted-foreground">
+                        {ocrWarnings.map((warning) => (
+                          <li key={warning}>{warning}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+
+              {ocrStatus === "error" ? (
+                <div className="rounded-[calc(var(--radius)+0.25rem)] border border-destructive/20 bg-destructive/8 p-4">
+                  <p className="text-sm font-medium text-destructive">OCR failed</p>
+                  <p className="mt-1 text-sm text-muted-foreground">{ocrError}</p>
+                </div>
+              ) : null}
+
+              {ocrStatus === "sample" ? (
+                <div className="grid gap-3 rounded-[calc(var(--radius)+0.25rem)] border border-amber-200/80 bg-amber-50/80 p-4">
+                  <p className="text-sm font-medium text-amber-700">Sample loaded</p>
+                  {ocrWarnings.length > 0 ? (
+                    <ul className="grid gap-2 text-sm leading-6 text-amber-700/80">
+                      {ocrWarnings.map((warning) => (
+                        <li key={warning}>{warning}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+          </div>
+
+          <div className="p-6">
+            <DialogHeader>
+              <DialogTitle>Role details</DialogTitle>
+              <DialogDescription>
+                Review the extracted fields and create the candidate link.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="mt-6 grid gap-6">
+              <form className="grid gap-5" onSubmit={handleCreate}>
+                <Field
+                  label="Role title"
+                  error={errors.roleTitle}
+                  badge={
+                    ocrFields.has("roleTitle")
+                      ? autofillSource === "sample"
+                        ? "Sample"
+                        : "OCR"
+                      : undefined
+                  }
+                >
+                  <Input
+                    value={form.roleTitle}
+                    onChange={(event) => updateFormValue("roleTitle", event.target.value)}
+                    placeholder="Filled by OCR or sample"
+                  />
+                </Field>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <Field
+                    label="Target seniority"
+                    error={errors.targetSeniority}
+                    badge={
+                      ocrFields.has("targetSeniority")
+                        ? autofillSource === "sample"
+                          ? "Sample"
+                          : "OCR"
+                        : undefined
+                    }
+                  >
+                    <select
+                      className="flex h-12 w-full rounded-[calc(var(--radius)+0.15rem)] border border-input bg-input/50 px-4 py-3 text-sm text-foreground shadow-sm outline-none transition-[border-color,box-shadow,transform] focus-visible:border-ring focus-visible:ring-4 focus-visible:ring-ring/15 focus-visible:-translate-y-px"
+                      value={form.targetSeniority}
+                      onChange={(event) =>
+                        updateFormValue("targetSeniority", event.target.value as TargetSeniority)
+                      }
+                    >
+                      <option value="">Select seniority</option>
+                      {targetSeniorities.map((item) => (
+                        <option key={item} value={item}>
+                          {item}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Duration (min)" error={errors.durationMinutes}>
+                    <Input
+                      type="number"
+                      min={10}
+                      max={90}
+                      value={form.durationMinutes}
+                      placeholder="25"
+                      onChange={(event) => updateFormValue("durationMinutes", event.target.value)}
+                    />
+                  </Field>
+                </div>
+
+                <Field
+                  label="Company name"
+                  badge={
+                    ocrFields.has("companyName")
+                      ? autofillSource === "sample"
+                        ? "Sample"
+                        : "OCR"
+                      : undefined
+                  }
+                >
+                  <Input
+                    value={form.companyName}
+                    onChange={(event) => updateFormValue("companyName", event.target.value)}
+                    placeholder="Filled by OCR or sample"
+                  />
+                </Field>
+
+                <Field
+                  label="Focus areas"
+                  error={errors.focusAreas}
+                  badge={
+                    ocrFields.has("focusAreas")
+                      ? autofillSource === "sample"
+                        ? "Sample"
+                        : "OCR"
+                      : undefined
+                  }
+                >
+                  <Textarea
+                    value={form.focusAreas}
+                    onChange={(event) => updateFormValue("focusAreas", event.target.value)}
+                    placeholder={"Filled by OCR or sample\nThen refine manually if needed"}
+                    rows={5}
+                  />
+                </Field>
+
+                <Field label="Admin notes">
+                  <Textarea
+                    value={form.adminNotes}
+                    onChange={(event) => updateFormValue("adminNotes", event.target.value)}
+                    placeholder="Optional hiring notes."
+                    rows={4}
+                  />
+                </Field>
+
+                {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
+
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="secondary" disabled={submitting}>
+                      Cancel
+                    </Button>
+                  </DialogClose>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? "Creating..." : "Create interview"}
+                  </Button>
+                </DialogFooter>
+              </form>
+
+              {createdUrl ? (
+                <div className="rounded-[calc(var(--radius)+0.35rem)] border border-primary/20 bg-primary/8 p-4">
+                  <p className="text-sm font-medium text-primary">Candidate interview link</p>
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+                    <Input readOnly value={createdUrl} className="font-mono text-xs sm:text-sm" />
+                    <div className="flex gap-3">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => navigator.clipboard.writeText(createdUrl)}
+                      >
+                        Copy
+                      </Button>
+                      <Button asChild>
+                        <Link href={createdUrl} target="_blank" rel="noopener noreferrer">
+                          Open
+                        </Link>
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+      </Dialog>
     </main>
   );
 }
@@ -1108,72 +1065,6 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
           </div>
         </div>
       ))}
-    </div>
-  );
-}
-
-function SessionsTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
-  if (sessions.length === 0) {
-    return <p className="text-sm text-muted-foreground">No sessions created yet.</p>;
-  }
-
-  return (
-    <div className="overflow-auto rounded-[calc(var(--radius)+0.2rem)] border border-border/70 bg-background/70">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-border/80">
-            <TableHead className="font-semibold text-foreground">Session</TableHead>
-            <TableHead className="font-semibold text-foreground">Candidate</TableHead>
-            <TableHead className="font-semibold text-foreground">Interview</TableHead>
-            <TableHead className="font-semibold text-foreground">Created</TableHead>
-            <TableHead className="font-semibold text-foreground">Status</TableHead>
-            <TableHead className="text-right font-semibold text-foreground">Open</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {sessions.map((session) => (
-            <TableRow key={session.id} className="border-border/70">
-              <TableCell>
-                <div>
-                  <p className="font-mono text-xs text-foreground">{session.id}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {session.agentId ? "Agent created" : "Agent pending"}
-                  </p>
-                </div>
-              </TableCell>
-              <TableCell>
-                <div>
-                  <p className="font-medium text-foreground">
-                    {session.candidateProfile.candidateName}
-                  </p>
-                  <p className="font-mono text-xs text-muted-foreground">
-                    {session.candidateProfile.githubUrl.replace("https://github.com/", "@")}
-                  </p>
-                </div>
-              </TableCell>
-              <TableCell>
-                <p className="font-medium text-foreground">{session.roleSnapshot.roleTitle}</p>
-                <p className="text-xs text-muted-foreground">
-                  {session.roleSnapshot.targetSeniority}
-                </p>
-              </TableCell>
-              <TableCell>
-                <span className="font-mono text-sm text-foreground">
-                  {new Date(session.createdAt).toLocaleString()}
-                </span>
-              </TableCell>
-              <TableCell>
-                <StatusBadge status={session.status} />
-              </TableCell>
-              <TableCell className="text-right">
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/admin/sessions/${session.id}`}>Open</Link>
-                </Button>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
     </div>
   );
 }
