@@ -10,6 +10,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "^3.1000.0",
     "@elevenlabs/elevenlabs-js": "^2.37.0",
     "@elevenlabs/react": "^0.14.1",
     "@mistralai/mistralai": "^1.14.1",
