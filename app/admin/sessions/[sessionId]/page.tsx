@@ -4,6 +4,7 @@ import { hasAdminSession } from "@/lib/admin-auth";
 import { ensureSessionTranscript } from "@/lib/session-transcript";
 import { getCandidateSession } from "@/lib/storage";
 import { DownloadButtons } from "@/components/download-buttons";
+import { SessionActions } from "@/components/session-actions";
 
 interface AdminSessionPageProps {
   params: Promise<{ sessionId: string }>;
@@ -213,6 +214,11 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
             transcript={hydratedSession.transcript}
           />
         </section>
+
+        <SessionActions
+          sessionId={hydratedSession.id}
+          currentStatus={hydratedSession.status}
+        />
 
         <section className="results-panel transcript-review">
           <div className="panel-heading">

@@ -140,30 +140,38 @@ export function AdminConsole({
   const [statusFilter, setStatusFilter] = useState<CandidateSessionStatus | "all">("all");
   const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
   const [bulkProcessing, setBulkProcessing] = useState(false);
-  const [lastVisited] = useState<number>(() => {
-    if (typeof window === "undefined") return 0;
-    const stored = localStorage.getItem("admin_last_visited");
-    return stored ? Number(stored) : 0;
-  });
+  const [lastVisited, setLastVisited] = useState<number>(Date.now());
+  const [badgesReady, setBadgesReady] = useState(false);
 
   useEffect(() => {
+    const stored = localStorage.getItem("admin_last_visited");
+    if (stored) {
+      setLastVisited(Number(stored));
+    } else {
+      setLastVisited(0);
+    }
+    setBadgesReady(true);
     const timeout = setTimeout(() => {
       localStorage.setItem("admin_last_visited", String(Date.now()));
     }, 2000);
     return () => clearTimeout(timeout);
   }, []);
 
-  const newSessionsCount = visibleSessions.filter((s) => {
-    const ts = s.sessionEndedAt ?? s.sessionStartedAt ?? s.createdAt;
-    return ts && Date.parse(ts) > lastVisited;
-  }).length;
+  const newSessionsCount = badgesReady
+    ? visibleSessions.filter((s) => {
+        const ts = s.sessionEndedAt ?? s.sessionStartedAt ?? s.createdAt;
+        return ts && Date.parse(ts) > lastVisited;
+      }).length
+    : 0;
 
-  const newScoredCount = visibleSessions.filter((s) => {
-    const isScoredStatus = ["scored", "under_review", "next_round", "rejected"].includes(s.status);
-    if (!isScoredStatus || !s.scorecard) return false;
-    const ts = s.sessionEndedAt ?? s.createdAt;
-    return ts && Date.parse(ts) > lastVisited;
-  }).length;
+  const newScoredCount = badgesReady
+    ? visibleSessions.filter((s) => {
+        const isScoredStatus = ["scored", "under_review", "next_round", "rejected"].includes(s.status);
+        if (!isScoredStatus || !s.scorecard) return false;
+        const ts = s.sessionEndedAt ?? s.createdAt;
+        return ts && Date.parse(ts) > lastVisited;
+      }).length
+    : 0;
 
   const handleDeleteRole = async (roleId: string) => {
     setVisibleRoles((current) => current.filter((r) => r.id !== roleId));
