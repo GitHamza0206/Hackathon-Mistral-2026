@@ -10,6 +10,7 @@ export const COLORS = {
   amber: "#FBBF24",
   text: "#EFEFEF",
   muted: "#64748B",
+  red: "#EF4444",
   // App UI colors (light mode product)
   appBg: "#faf8ff",
   appPanel: "rgba(255,255,255,0.92)",
@@ -37,56 +38,64 @@ export const CLAMP = {
 export const FPS = 30;
 export const TOTAL_FRAMES = 3600; // 120 seconds
 
-// Act 1: Hook & Problem (0–16s)
+// ── Act 1: The Problem (0–44s) ──────────────────────────
 export const SCENE_1_START = 0;
-export const SCENE_1_END = 240;     // 0–8s     StatHook
+export const SCENE_1_END = 210;     // 0–7s     ApplicationMontage
 
-export const SCENE_2_START = 240;
-export const SCENE_2_END = 480;     // 8–16s    SplitProblem
+export const SCENE_2_START = 210;
+export const SCENE_2_END = 390;     // 7–13s    HRRejection
 
-// Act 2: The Solution (16–28s)
-export const SCENE_3_START = 480;
-export const SCENE_3_END = 660;     // 16–22s   CernoReveal
+export const SCENE_3_START = 390;
+export const SCENE_3_END = 540;     // 13–18s   RejectionEmail
 
-export const SCENE_4_START = 660;
-export const SCENE_4_END = 840;     // 22–28s   ThreeSteps
+export const SCENE_4_START = 540;
+export const SCENE_4_END = 780;     // 18–26s   PainPoints
 
-// Act 3: Product — Admin View (28–50s)
-export const SCENE_5_START = 840;
-export const SCENE_5_END = 1080;    // 28–36s   AdminSetup
+export const SCENE_5_START = 780;
+export const SCENE_5_END = 930;     // 26–31s   BrokenRecruitment
 
-export const SCENE_6_START = 1080;
-export const SCENE_6_END = 1320;    // 36–44s   AdminDashboard
+export const SCENE_6_START = 930;
+export const SCENE_6_END = 1110;    // 31–37s   KeyPhrase
 
-export const SCENE_7_START = 1320;
-export const SCENE_7_END = 1500;    // 44–50s   AdminScorecard
+export const SCENE_7_START = 1110;
+export const SCENE_7_END = 1320;    // 37–44s   CernoReveal
 
-// Act 4: Product — Candidate View (50–72s)
-export const SCENE_8_START = 1500;
-export const SCENE_8_END = 1680;    // 50–56s   CandidateApply
+// ── Act 2: Product — Admin View (44–58s) ────────────────
+export const SCENE_8_START = 1320;
+export const SCENE_8_END = 1530;    // 44–51s   AdminSetup
 
-export const SCENE_9_START = 1680;
-export const SCENE_9_END = 1860;    // 56–62s   CandidateChecklist
+export const SCENE_9_START = 1530;
+export const SCENE_9_END = 1740;    // 51–58s   AdminDashboard
 
-export const SCENE_10_START = 1860;
-export const SCENE_10_END = 2160;   // 62–72s   LiveInterview (HERO)
+export const SCENE_10_START = 1740;
+export const SCENE_10_END = 1890;   // 58–63s   AdminScorecard
 
-// Act 5: Analytics & Power (72–92s)
-export const SCENE_11_START = 2160;
-export const SCENE_11_END = 2400;   // 72–80s   ComparisonView
+// ── Act 3: Product — Candidate View (63–85s) ────────────
+export const SCENE_11_START = 1890;
+export const SCENE_11_END = 2070;   // 63–69s   CandidateApply
 
-export const SCENE_12_START = 2400;
-export const SCENE_12_END = 2580;   // 80–86s   Analytics
+export const SCENE_12_START = 2070;
+export const SCENE_12_END = 2250;   // 69–75s   CandidateChecklist
 
-export const SCENE_13_START = 2580;
-export const SCENE_13_END = 2760;   // 86–92s   Domains
+export const SCENE_13_START = 2250;
+export const SCENE_13_END = 2550;   // 75–85s   LiveInterview (HERO)
 
-// Act 6: Impact & Close (92–120s)
-export const SCENE_14_START = 2760;
-export const SCENE_14_END = 3120;   // 92–104s  Outcomes
+// ── Act 4: Analytics & Power (85–103s) ──────────────────
+export const SCENE_14_START = 2550;
+export const SCENE_14_END = 2730;   // 85–91s   ComparisonView
 
-export const SCENE_15_START = 3120;
-export const SCENE_15_END = 3600;   // 104–120s CTA
+export const SCENE_15_START = 2730;
+export const SCENE_15_END = 2910;   // 91–97s   Analytics
+
+export const SCENE_16_START = 2910;
+export const SCENE_16_END = 3090;   // 97–103s  Domains
+
+// ── Act 5: Impact & Close (103–120s) ────────────────────
+export const SCENE_17_START = 3090;
+export const SCENE_17_END = 3330;   // 103–111s Outcomes
+
+export const SCENE_18_START = 3330;
+export const SCENE_18_END = 3600;   // 111–120s CTA
 
 // ─── Typography ───────────────────────────────────────────
 export const FONT_WEIGHTS = {
