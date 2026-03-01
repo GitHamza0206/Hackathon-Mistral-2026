@@ -487,7 +487,10 @@ export function AdminConsole({
 
             <div className="grid gap-3 sm:grid-cols-3">
               <MetricCard label="Active templates" value={String(recentRoles.length)} />
-              <MetricCard label="Candidate sessions" value={String(recentSessions.length)} />
+              <MetricCard
+                label="Active candidates"
+                value={String(recentSessions.filter((s) => !["rejected", "completed", "failed"].includes(s.status)).length)}
+              />
               <MetricCard
                 label="Scored interviews"
                 value={String(recentSessions.filter((session) => ["scored", "rejected", "under_review", "next_round"].includes(session.status)).length)}
@@ -1364,6 +1367,11 @@ function InterviewLinksTable({ roles, onDelete }: { roles: RoleTemplateRecord[];
                     onClick={() => navigator.clipboard.writeText(role.candidateApplyUrl)}
                   >
                     Copy
+                  </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/admin/interviews/${role.id}`}>
+                      View
+                    </Link>
                   </Button>
                   <Button asChild size="sm">
                     <Link href={role.candidateApplyUrl} target="_blank" rel="noopener noreferrer">

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { hasAdminSession } from "@/lib/admin-auth";
-import { getRoleTemplate } from "@/lib/storage";
+import { getRoleTemplate, listCandidateSessionsByRole } from "@/lib/storage";
+import type { CandidateSessionRecord } from "@/lib/interviews";
 
 interface AdminInterviewPageProps {
   params: Promise<{ roleId: string }>;
@@ -31,8 +32,17 @@ export default async function AdminInterviewPage({ params }: AdminInterviewPageP
     notFound();
   }
 
+  const sessions = await listCandidateSessionsByRole(roleId);
   const rejectThreshold = role.rejectThreshold ?? 40;
   const advanceThreshold = role.advanceThreshold ?? 90;
+
+  const scoredSessions = sessions.filter(
+    (s) => s.scorecard && typeof s.scorecard.overallScore === "number",
+  );
+  const avgScore =
+    scoredSessions.length > 0
+      ? scoredSessions.reduce((sum, s) => sum + s.scorecard!.overallScore, 0) / scoredSessions.length
+      : null;
 
   return (
     <main className="results-shell">
@@ -97,6 +107,30 @@ export default async function AdminInterviewPage({ params }: AdminInterviewPageP
             ) : (
               <p className="section-copy">No admin notes provided.</p>
             )}
+
+            <div style={{ marginTop: "1.5rem" }}>
+              <p className="section-label">Interview metrics</p>
+              <dl className="detail-list">
+                <div>
+                  <dt>Total candidates</dt>
+                  <dd>{sessions.length}</dd>
+                </div>
+                <div>
+                  <dt>Scored</dt>
+                  <dd>{scoredSessions.length}</dd>
+                </div>
+                {avgScore !== null ? (
+                  <div>
+                    <dt>Avg score</dt>
+                    <dd>{avgScore.toFixed(1)}</dd>
+                  </div>
+                ) : null}
+                <div>
+                  <dt>Advancing</dt>
+                  <dd>{sessions.filter((s) => s.status === "next_round").length}</dd>
+                </div>
+              </dl>
+            </div>
           </section>
         </div>
 
@@ -108,12 +142,85 @@ export default async function AdminInterviewPage({ params }: AdminInterviewPageP
           </div>
         </section>
 
+        {sessions.length > 0 ? (
+          <section className="results-panel transcript-review">
+            <p className="section-label">Candidate sessions ({sessions.length})</p>
+            <div className="transcript-list">
+              {sessions.map((session) => (
+                <CandidateSessionRow key={session.id} session={session} />
+              ))}
+            </div>
+          </section>
+        ) : (
+          <section className="results-panel">
+            <p className="section-label">Candidate sessions</p>
+            <p className="section-copy">No candidates have applied yet.</p>
+          </section>
+        )}
+
         <Link className="ghost-link" href="/">
           Back to admin home
         </Link>
       </section>
     </main>
   );
+}
+
+function CandidateSessionRow({ session }: { session: CandidateSessionRecord }) {
+  const hasScore = typeof session.scorecard?.overallScore === "number";
+  const hasFeedback = Boolean(session.candidateExperienceFeedback);
+
+  return (
+    <article
+      className="transcript-entry"
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        gap: "1rem",
+        flexWrap: "wrap",
+        borderLeft: session.status === "next_round" ? "3px solid #22c55e" : undefined,
+        paddingLeft: session.status === "next_round" ? "1rem" : undefined,
+      }}
+    >
+      <div style={{ flex: 1, minWidth: "200px" }}>
+        <span style={{ fontWeight: 600 }}>{session.candidateProfile.candidateName}</span>
+        <p style={{ fontSize: "0.85rem", color: "var(--muted)", margin: "0.2rem 0" }}>
+          {formatStatusLabel(session.status)}
+          {hasScore ? ` — Score: ${session.scorecard!.overallScore}` : ""}
+          {hasScore ? ` (${session.scorecard!.overallRecommendation.replace(/_/g, " ")})` : ""}
+        </p>
+        {hasFeedback ? (
+          <p style={{ fontSize: "0.85rem", margin: "0.2rem 0" }}>
+            <span style={{ color: "#f59e0b" }}>
+              {"★".repeat(session.candidateExperienceFeedback!.rating)}
+              {"☆".repeat(5 - session.candidateExperienceFeedback!.rating)}
+            </span>
+            {session.candidateExperienceFeedback!.comment ? (
+              <span style={{ color: "var(--muted)", marginLeft: "0.5rem" }}>
+                &ldquo;{session.candidateExperienceFeedback!.comment}&rdquo;
+              </span>
+            ) : null}
+          </p>
+        ) : null}
+      </div>
+      <Link
+        href={`/admin/sessions/${session.id}`}
+        style={{
+          fontSize: "0.85rem",
+          color: "var(--accent)",
+          textDecoration: "none",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Review &rarr;
+      </Link>
+    </article>
+  );
+}
+
+function formatStatusLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatTimestamp(value?: string) {

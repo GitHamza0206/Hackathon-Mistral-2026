@@ -127,6 +127,7 @@ async function readLocalSnapshot() {
       sessions: parsed.sessions ?? {},
       recentSessionIds: parsed.recentSessionIds ?? [],
       roleSessionIds: parsed.roleSessionIds ?? {},
+      counters: parsed.counters,
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -373,6 +374,21 @@ export async function deleteCandidateSession(id: string) {
 
 export async function listRecentCandidateSessions(limit = 6) {
   return listCandidateSessions(limit);
+}
+
+export async function listCandidateSessionsByRole(roleId: string): Promise<CandidateSessionRecord[]> {
+  if (hasKvConfig()) {
+    const allSessions = await listCandidateSessions();
+    return allSessions.filter((session) => session.roleId === roleId);
+  }
+
+  const snapshot = await getLocalSnapshot();
+  const sessionIds = snapshot.roleSessionIds[roleId] ?? [];
+  const records = sessionIds
+    .map((id) => snapshot.sessions[id])
+    .filter((record): record is CandidateSessionRecord => Boolean(record));
+
+  return sortCandidateSessions(records);
 }
 
 export async function listCandidateSessions(limit?: number) {
