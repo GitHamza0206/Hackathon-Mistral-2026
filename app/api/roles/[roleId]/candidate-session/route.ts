@@ -11,7 +11,8 @@ import {
 import { parseUploadedPdf } from "@/lib/pdf";
 import { generateInterviewStrategy } from "@/lib/preprocess";
 import { buildCandidateSubmissionFromForm } from "@/lib/prompt";
-import { getRoleTemplate, saveCandidateSession, updateCandidateSession } from "@/lib/storage";
+import { getRoleTemplate, saveCandidateSession, updateCandidateSession, updatePlatformCounters } from "@/lib/storage";
+import { fetchWebsiteText } from "@/lib/website";
 
 export const runtime = "nodejs";
 
@@ -75,9 +76,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       logStepDuration("Cover letter OCR", coverLetterStartedAt);
     }
 
-    const githubStartedAt = Date.now();
-    const repos = await fetchGitHubRepos(payload.data.githubUrl);
-    logStepDuration("GitHub enrichment", githubStartedAt);
+    const enrichmentStartedAt = Date.now();
+    const [repos, personalWebsiteText] = await Promise.all([
+      fetchGitHubRepos(payload.data.githubUrl),
+      payload.data.personalWebsiteUrl
+        ? fetchWebsiteText(payload.data.personalWebsiteUrl)
+        : Promise.resolve(""),
+    ]);
+    logStepDuration("GitHub + website enrichment", enrichmentStartedAt);
 
     const candidateProfile: CandidateProfileRecord = {
       ...payload.data,
@@ -86,6 +92,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       coverLetterFileName: coverLetterParsed?.fileName,
       coverLetterText: coverLetterParsed?.text,
       githubRepos: repos.length > 0 ? repos : undefined,
+      personalWebsiteText: personalWebsiteText || undefined,
     };
 
     const sessionId = createCandidateSessionId();
@@ -106,6 +113,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
       roleId: role.id,
       status: baseSession.status,
     });
+
+    try {
+      await updatePlatformCounters((c) => {
+        const normalizedUrl = payload.data!.githubUrl.toLowerCase().replace(/\/+$/, "");
+        const uniqueGithubUrls = c.uniqueGithubUrls.includes(normalizedUrl)
+          ? c.uniqueGithubUrls
+          : [...c.uniqueGithubUrls, normalizedUrl];
+        return { ...c, sessionsCreated: c.sessionsCreated + 1, uniqueGithubUrls };
+      });
+    } catch (counterError) {
+      console.warn("[candidate-session] counter increment failed:", counterError);
+    }
 
     let enrichedSession = baseSession;
     try {

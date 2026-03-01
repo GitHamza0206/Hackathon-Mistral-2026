@@ -66,6 +66,7 @@ export interface CandidateSubmissionInput {
   candidateName: string;
   candidateEmail?: string;
   githubUrl: string;
+  personalWebsiteUrl?: string;
   extraNote?: string;
 }
 
@@ -75,6 +76,7 @@ export interface CandidateProfileRecord extends CandidateSubmissionInput {
   coverLetterFileName?: string;
   coverLetterText?: string;
   githubRepos?: GitHubRepo[];
+  personalWebsiteText?: string;
 }
 
 export interface CandidateSessionRoleSnapshot {
@@ -116,6 +118,30 @@ export interface CandidateFeedback {
   summary: string;
 }
 
+export interface CandidateExperienceFeedback {
+  rating: number;
+  comment?: string;
+  submittedAt: string;
+}
+
+export interface PlatformCounters {
+  rolesCreated: number;
+  sessionsCreated: number;
+  interviewsConducted: number;
+  totalInterviewSeconds: number;
+  uniqueGithubUrls: string[];
+}
+
+export function createEmptyPlatformCounters(): PlatformCounters {
+  return {
+    rolesCreated: 0,
+    sessionsCreated: 0,
+    interviewsConducted: 0,
+    totalInterviewSeconds: 0,
+    uniqueGithubUrls: [],
+  };
+}
+
 export function extractCandidateFeedback(scorecard: Scorecard): CandidateFeedback {
   return {
     strengths: scorecard.strengths,
@@ -139,6 +165,7 @@ export interface CandidateSessionRecord {
   scorecard?: Scorecard;
   interviewStrategy?: InterviewStrategy;
   error?: string;
+  candidateExperienceFeedback?: CandidateExperienceFeedback;
 }
 
 export interface RoleBootstrap {
@@ -244,8 +271,8 @@ export function validateRoleTemplateInput(payload: unknown): ValidationResult<Ro
   const durationMinutes =
     typeof durationMinutesRaw === "number" ? durationMinutesRaw : Number(durationMinutesRaw);
 
-  if (!Number.isFinite(durationMinutes) || durationMinutes < 10 || durationMinutes > 90) {
-    errors.durationMinutes = "Choose an interview duration between 10 and 90 minutes.";
+  if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 90) {
+    errors.durationMinutes = "Choose an interview duration between 1 and 90 minutes.";
   }
 
   const rejectThresholdRaw = readValue(payload, "rejectThreshold");
@@ -301,6 +328,7 @@ export function validateCandidateSubmissionInput(
   const candidateName = readString(payload, "candidateName");
   const candidateEmail = readOptionalString(payload, "candidateEmail");
   const githubUrl = readString(payload, "githubUrl");
+  const personalWebsiteUrl = readOptionalString(payload, "personalWebsiteUrl");
   const extraNote = readOptionalString(payload, "extraNote");
   const errors: Record<string, string> = {};
 
@@ -316,6 +344,17 @@ export function validateCandidateSubmissionInput(
     errors.githubUrl = "Paste a valid public GitHub profile URL.";
   }
 
+  if (personalWebsiteUrl) {
+    try {
+      const parsed = new URL(personalWebsiteUrl);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        errors.personalWebsiteUrl = "Use an http or https URL for your personal website.";
+      }
+    } catch {
+      errors.personalWebsiteUrl = "Use a valid URL for your personal website.";
+    }
+  }
+
   if (Object.keys(errors).length > 0) {
     return { errors };
   }
@@ -325,6 +364,7 @@ export function validateCandidateSubmissionInput(
       candidateName,
       candidateEmail,
       githubUrl,
+      personalWebsiteUrl,
       extraNote,
     },
   };
@@ -481,6 +521,35 @@ function readString(value: unknown, key: string) {
 function readOptionalString(value: unknown, key: string) {
   const item = readValue(value, key);
   return typeof item === "string" && item.trim() ? item.trim() : undefined;
+}
+
+export function validateCandidateExperienceFeedback(
+  payload: unknown,
+): ValidationResult<CandidateExperienceFeedback> {
+  if (!payload || typeof payload !== "object") {
+    return { errors: { form: "Invalid request body." } };
+  }
+
+  const ratingRaw = readValue(payload, "rating");
+  const comment = readOptionalString(payload, "comment");
+  const errors: Record<string, string> = {};
+
+  const rating = typeof ratingRaw === "number" ? ratingRaw : Number(ratingRaw);
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    errors.rating = "Rating must be between 1 and 5.";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { errors };
+  }
+
+  return {
+    data: {
+      rating,
+      comment,
+      submittedAt: new Date().toISOString(),
+    },
+  };
 }
 
 function readValue(value: unknown, key: string) {

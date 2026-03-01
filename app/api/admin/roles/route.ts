@@ -8,7 +8,7 @@ import {
   type RoleTemplateRecord,
 } from "@/lib/interviews";
 import { hasReadablePdfText, parseUploadedPdf } from "@/lib/pdf";
-import { saveRoleTemplate } from "@/lib/storage";
+import { saveRoleTemplate, updatePlatformCounters } from "@/lib/storage";
 
 export const runtime = "nodejs";
 
@@ -96,6 +96,12 @@ export async function POST(request: NextRequest) {
     };
 
     await saveRoleTemplate(record);
+
+    try {
+      await updatePlatformCounters((c) => ({ ...c, rolesCreated: c.rolesCreated + 1 }));
+    } catch (counterError) {
+      console.warn("[roles] counter increment failed:", counterError);
+    }
 
     return NextResponse.json({
       roleId,

@@ -10,6 +10,7 @@ import {
   ListChecks,
   Sparkle,
   SquaresFour,
+  Trash,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ import {
   targetSeniorities,
   type CandidateSessionRecord,
   type CandidateSessionStatus,
+  type PlatformCounters,
   type RoleTemplateRecord,
   type TargetSeniority,
 } from "@/lib/interviews";
@@ -55,6 +57,7 @@ interface AdminConsoleProps {
   isAuthenticated: boolean;
   recentRoles: RoleTemplateRecord[];
   recentSessions: CandidateSessionRecord[];
+  counters: PlatformCounters | null;
 }
 
 interface CreateRoleResponse {
@@ -104,6 +107,7 @@ export function AdminConsole({
   isAuthenticated,
   recentRoles,
   recentSessions,
+  counters,
 }: AdminConsoleProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -128,6 +132,30 @@ export function AdminConsole({
   const [ocrError, setOcrError] = useState("");
   const [ocrWarnings, setOcrWarnings] = useState<string[]>([]);
   const [ocrFields, setOcrFields] = useState<Set<OcrField>>(new Set());
+  const [visibleRoles, setVisibleRoles] = useState(recentRoles);
+  const [visibleSessions, setVisibleSessions] = useState(recentSessions);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<CandidateSessionStatus | "all">("all");
+
+  const handleDeleteRole = async (roleId: string) => {
+    setVisibleRoles((current) => current.filter((r) => r.id !== roleId));
+    await fetch(`/api/admin/roles/${roleId}`, { method: "DELETE" });
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    setVisibleSessions((current) => current.filter((s) => s.id !== sessionId));
+    await fetch(`/api/admin/sessions/${sessionId}`, { method: "DELETE" });
+  };
+
+  const filteredSessions = visibleSessions.filter((session) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      session.candidateProfile.candidateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      session.roleSnapshot.roleTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      session.candidateProfile.githubUrl.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || session.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const clearFieldError = (field: string) => {
     setErrors((current) => {
@@ -464,6 +492,9 @@ export function AdminConsole({
                 label="Scored interviews"
                 value={String(recentSessions.filter((session) => ["scored", "rejected", "under_review", "next_round"].includes(session.status)).length)}
               />
+              <MetricCard label="Unique candidates" value={String(counters?.uniqueGithubUrls.length ?? 0)} />
+              <MetricCard label="Interview hours" value={formatInterviewHours(counters?.totalInterviewSeconds ?? 0)} />
+              <MetricCard label="Total interviews" value={String(counters?.interviewsConducted ?? 0)} />
             </div>
           </CardHeader>
         </Card>
@@ -512,7 +543,7 @@ export function AdminConsole({
               </CardHeader>
 
               <CardContent>
-                <InterviewLinksTable roles={recentRoles} />
+                <InterviewLinksTable roles={visibleRoles} onDelete={handleDeleteRole} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -546,11 +577,31 @@ export function AdminConsole({
                 </Tabs>
               </CardHeader>
 
+              <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
+                <Input
+                  type="search"
+                  placeholder="Search candidates..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="max-w-xs"
+                />
+                <select
+                  className="flex h-10 rounded-[calc(var(--radius)+0.15rem)] border border-input bg-input/50 px-3 py-2 text-sm"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as CandidateSessionStatus | "all")}
+                >
+                  <option value="all">All statuses</option>
+                  {KANBAN_COLUMNS.map(({ status, label }) => (
+                    <option key={status} value={status}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
               <CardContent>
                 {candidatesView === "table" ? (
-                  <CandidatesTable sessions={recentSessions} />
+                  <CandidatesTable sessions={filteredSessions} onDelete={handleDeleteSession} />
                 ) : (
-                  <CandidatesKanban sessions={recentSessions} />
+                  <CandidatesKanban sessions={filteredSessions} onDelete={handleDeleteSession} />
                 )}
               </CardContent>
             </Card>
@@ -914,7 +965,7 @@ function RoleForm({
           <Field label="Duration (min)" error={errors.durationMinutes}>
             <Input
               type="number"
-              min={10}
+              min={1}
               max={90}
               value={form.durationMinutes}
               placeholder="25"
@@ -1041,6 +1092,13 @@ function formatStatus(status: CandidateSessionStatus) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
 }
 
+function formatInterviewHours(totalSeconds: number): string {
+  if (totalSeconds === 0) return "0";
+  const hours = totalSeconds / 3600;
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  return `${hours.toFixed(1)}h`;
+}
+
 function formatTimestamp(value: string) {
   const date = new Date(value);
 
@@ -1073,7 +1131,7 @@ function StatusBadge({ status }: { status: CandidateSessionStatus }) {
   return <Badge className={styles[status]}>{formatStatus(status)}</Badge>;
 }
 
-function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
+function CandidatesTable({ sessions, onDelete }: { sessions: CandidateSessionRecord[]; onDelete: (id: string) => void }) {
   if (sessions.length === 0) {
     return <p className="text-sm text-muted-foreground">No candidates yet.</p>;
   }
@@ -1094,7 +1152,13 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
         </TableHeader>
         <TableBody>
           {sessions.map((session) => (
-            <TableRow key={session.id} className="border-border/70">
+            <TableRow
+              key={session.id}
+              className={cn(
+                "border-border/70",
+                session.status === "next_round" && "bg-emerald-50/50 border-l-2 border-l-emerald-400",
+              )}
+            >
               <TableCell>
                 <div>
                   <p className="font-medium text-foreground">
@@ -1132,17 +1196,33 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
               </TableCell>
               <TableCell>
                 {typeof session.scorecard?.overallScore === "number" ? (
-                  <span className="font-mono text-sm text-foreground">
-                    {session.scorecard.overallScore.toFixed(1)}
-                  </span>
+                  <div>
+                    <span className="font-mono text-sm text-foreground">
+                      {session.scorecard.overallScore.toFixed(1)}
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      {session.scorecard.overallRecommendation.replace(/_/g, " ")}
+                    </p>
+                  </div>
                 ) : (
                   <span className="text-sm text-muted-foreground">-</span>
                 )}
               </TableCell>
               <TableCell className="text-right">
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/admin/sessions/${session.id}`}>Review</Link>
-                </Button>
+                <div className="flex justify-end gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/admin/sessions/${session.id}`}>Review</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(session.id)}
+                  >
+                    <Trash className="size-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -1152,7 +1232,7 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
   );
 }
 
-function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) {
+function CandidatesKanban({ sessions, onDelete }: { sessions: CandidateSessionRecord[]; onDelete: (id: string) => void }) {
   const byStatus = KANBAN_COLUMNS.reduce(
     (acc, { status }) => {
       acc[status] = sessions.filter((session) => session.status === status);
@@ -1179,7 +1259,10 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
             {(byStatus[status] ?? []).map((session) => (
               <div
                 key={session.id}
-                className="rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-card/90 p-4 shadow-[0_18px_40px_rgba(99,102,241,0.08)]"
+                className={cn(
+                  "rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-card/90 p-4 shadow-[0_18px_40px_rgba(99,102,241,0.08)]",
+                  session.status === "next_round" && "border-emerald-300 bg-emerald-50/40",
+                )}
               >
                 <div className="space-y-1">
                   <p className="font-medium text-foreground">
@@ -1210,9 +1293,20 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
                   </p>
                 </div>
 
-                <Button asChild size="sm" variant="outline" className="mt-4 w-full">
-                  <Link href={`/admin/sessions/${session.id}`}>Review transcript</Link>
-                </Button>
+                <div className="mt-4 flex gap-2">
+                  <Button asChild size="sm" variant="outline" className="flex-1">
+                    <Link href={`/admin/sessions/${session.id}`}>Review</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(session.id)}
+                  >
+                    <Trash className="size-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -1222,7 +1316,7 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
   );
 }
 
-function InterviewLinksTable({ roles }: { roles: RoleTemplateRecord[] }) {
+function InterviewLinksTable({ roles, onDelete }: { roles: RoleTemplateRecord[]; onDelete: (id: string) => void }) {
   if (roles.length === 0) {
     return <p className="text-sm text-muted-foreground">No interview links created yet.</p>;
   }
@@ -1275,6 +1369,15 @@ function InterviewLinksTable({ roles }: { roles: RoleTemplateRecord[] }) {
                     <Link href={role.candidateApplyUrl} target="_blank" rel="noopener noreferrer">
                       Open
                     </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(role.id)}
+                  >
+                    <Trash className="size-4" />
                   </Button>
                 </div>
               </TableCell>

@@ -759,13 +759,18 @@ select {
 }
 
 .threshold-bar-wrap {
-  padding: 1rem 0;
+  padding: 1.5rem 0 0.5rem;
 }
 
 .threshold-bar {
   position: relative;
-  display: flex;
   height: 0.5rem;
+}
+
+.threshold-bar-zones {
+  display: flex;
+  width: 100%;
+  height: 100%;
   border-radius: 999px;
   overflow: hidden;
 }
@@ -1179,6 +1184,181 @@ code {
   padding: 0.3rem 0.5rem;
   border-radius: 0.5rem;
   background: rgba(99, 102, 241, 0.1);
+}
+
+.mode-indicator-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem;
+  position: relative;
+}
+
+.mode-indicator {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.mode-label {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+.ear-icon {
+  width: 3.5rem;
+  height: 3.5rem;
+  color: var(--accent);
+  animation: ear-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes ear-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.06); }
+}
+
+.speaking-bars-large {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  height: 3.5rem;
+}
+
+.speaking-bar-lg {
+  width: 4px;
+  border-radius: 999px;
+  will-change: transform;
+}
+
+/* Outer bars — slow wave */
+.speaking-bar-lg:nth-child(1),
+.speaking-bar-lg:nth-child(12) {
+  height: 20%;
+  background: var(--accent-warm);
+  animation: wave-slow 1.4s ease-in-out infinite;
+}
+
+.speaking-bar-lg:nth-child(2),
+.speaking-bar-lg:nth-child(11) {
+  height: 35%;
+  background: linear-gradient(to top, var(--accent-warm), var(--accent));
+  animation: wave-slow 1.4s ease-in-out infinite;
+  animation-delay: 0.08s;
+}
+
+/* Mid bars — medium wave */
+.speaking-bar-lg:nth-child(3),
+.speaking-bar-lg:nth-child(10) {
+  height: 50%;
+  background: linear-gradient(to top, var(--accent), var(--accent-mid));
+  animation: wave-mid 0.9s ease-in-out infinite;
+  animation-delay: 0.12s;
+}
+
+.speaking-bar-lg:nth-child(4),
+.speaking-bar-lg:nth-child(9) {
+  height: 65%;
+  background: var(--accent);
+  animation: wave-mid 0.9s ease-in-out infinite;
+  animation-delay: 0.18s;
+}
+
+/* Inner bars — fast wave */
+.speaking-bar-lg:nth-child(5),
+.speaking-bar-lg:nth-child(8) {
+  height: 80%;
+  background: var(--accent);
+  animation: wave-fast 0.6s ease-in-out infinite;
+  animation-delay: 0.06s;
+}
+
+.speaking-bar-lg:nth-child(6),
+.speaking-bar-lg:nth-child(7) {
+  height: 100%;
+  background: linear-gradient(to top, var(--accent), var(--accent-mid));
+  animation: wave-fast 0.6s ease-in-out infinite;
+  animation-delay: 0.14s;
+}
+
+@keyframes wave-slow {
+  0%, 100% { transform: scaleY(0.3); opacity: 0.7; }
+  25% { transform: scaleY(0.8); opacity: 0.9; }
+  50% { transform: scaleY(0.5); opacity: 0.8; }
+  75% { transform: scaleY(1); opacity: 1; }
+}
+
+@keyframes wave-mid {
+  0%, 100% { transform: scaleY(0.35); }
+  30% { transform: scaleY(1); }
+  60% { transform: scaleY(0.5); }
+  80% { transform: scaleY(0.85); }
+}
+
+@keyframes wave-fast {
+  0%, 100% { transform: scaleY(0.4); }
+  25% { transform: scaleY(0.9); }
+  50% { transform: scaleY(1); }
+  75% { transform: scaleY(0.6); }
+}
+
+.star-button {
+  font-size: 1.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: opacity 160ms ease;
+  color: var(--accent);
+  padding: 0;
+}
+
+.star-button:hover {
+  opacity: 0.8 !important;
+}
+
+.experience-textarea {
+  width: 100%;
+  border: 1px solid rgba(99, 102, 241, 0.14);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 0.95rem 1rem;
+  border-radius: 1rem;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  margin-bottom: 0.75rem;
+}
+
+.connection-indicator {
+  position: absolute;
+  top: 0.75rem;
+  right: 0.75rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+}
+
+.connection-indicator.connected {
+  background: #22c55e;
+  animation: connection-pulse 2s ease-in-out infinite;
+}
+
+@keyframes connection-pulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 1; }
+}
+
+.connection-indicator.connecting {
+  background: var(--accent-warm);
+  animation: connection-pulse 0.8s ease-in-out infinite;
+}
+
+.connection-indicator.disconnected {
+  background: var(--muted);
 }
 
 @media (max-width: 980px) {

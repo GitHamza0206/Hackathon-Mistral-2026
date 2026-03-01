@@ -7,7 +7,7 @@ import {
   resolvePostScoringStatus,
   validateCandidateSessionCompletionInput,
 } from "@/lib/interviews";
-import { getCandidateSession, updateCandidateSession } from "@/lib/storage";
+import { getCandidateSession, updateCandidateSession, updatePlatformCounters } from "@/lib/storage";
 
 interface RouteContext {
   params: Promise<{ sessionId: string }>;
@@ -74,6 +74,22 @@ export async function POST(request: Request, context: RouteContext) {
       scorecard,
       error: undefined,
     }));
+
+    try {
+      const startMs = Date.parse(session.sessionStartedAt ?? session.createdAt);
+      const endMs = Date.parse(sessionEndedAt);
+      const durationSeconds =
+        Number.isFinite(startMs) && Number.isFinite(endMs)
+          ? Math.max(0, Math.floor((endMs - startMs) / 1000))
+          : 0;
+      await updatePlatformCounters((c) => ({
+        ...c,
+        interviewsConducted: c.interviewsConducted + 1,
+        totalInterviewSeconds: c.totalInterviewSeconds + durationSeconds,
+      }));
+    } catch (counterError) {
+      console.warn("[complete] counter increment failed:", counterError);
+    }
 
     return NextResponse.json({
       ok: true,

@@ -3,6 +3,7 @@
 import { useConversation } from "@elevenlabs/react";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DownloadSimple, Ear } from "@phosphor-icons/react";
 import type { CandidateFeedback, SessionBootstrap, TranscriptEntry } from "@/lib/interviews";
 
 interface InterviewSessionProps {
@@ -53,6 +54,10 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [now, setNow] = useState(() => Date.now());
   const [candidateFeedback, setCandidateFeedback] = useState<CandidateFeedback | null>(null);
+  const [experienceRating, setExperienceRating] = useState(0);
+  const [experienceComment, setExperienceComment] = useState("");
+  const [experienceSubmitted, setExperienceSubmitted] = useState(false);
+  const [experienceSubmitting, setExperienceSubmitting] = useState(false);
   const conversationIdRef = useRef("");
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const completionSentRef = useRef(false);
@@ -340,6 +345,25 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     }
   }
 
+  async function submitExperienceFeedback() {
+    if (experienceRating < 1 || experienceSubmitting) return;
+    setExperienceSubmitting(true);
+    try {
+      const response = await fetch(`/api/sessions/${sessionId}/feedback`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rating: experienceRating, comment: experienceComment || undefined }),
+      });
+      if (response.ok) {
+        setExperienceSubmitted(true);
+      }
+    } catch {
+      // Optional feedback — silently handle failures
+    } finally {
+      setExperienceSubmitting(false);
+    }
+  }
+
   const isScoredStatus = bootstrap?.status === "scored" || bootstrap?.status === "rejected" || bootstrap?.status === "under_review" || bootstrap?.status === "next_round";
   const completed =
     bootstrap?.status === "completed" || isScoredStatus || finalizing;
@@ -444,12 +468,8 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
 
             {(phase === "ready" || phase === "active" || phase === "winding_down" || phase === "overtime") && (
               <div className="session-notice">
-                <p className="section-label">How this session works</p>
                 <p className="section-copy">
-                  The session will not close automatically when time runs out.
-                  You decide when to end the interview by clicking &ldquo;End session.&rdquo;
-                  However, only the discussion within the planned {bootstrap.durationMinutes}-minute
-                  window counts toward your evaluation.
+                  Only discussion within the {bootstrap.durationMinutes}-minute window counts toward evaluation.
                 </p>
               </div>
             )}
@@ -481,55 +501,47 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
               </div>
             )}
 
-            {phase !== "processing" && phase !== "feedback" && (
-              <div className="status-grid">
-                <div className="status-box">
-                  <span>Connection</span>
-                  <strong>
-                    <span className={`connection-dot ${conversation.status}`} />
-                    {conversation.status}
-                  </strong>
-                </div>
-                <div className="status-box">
-                  <span>Mode</span>
-                  <strong>
-                    {conversation.isSpeaking ? (
-                      <>
-                        <span className="speaking-indicator" aria-hidden="true">
-                          <span className="speaking-bar" />
-                          <span className="speaking-bar" />
-                          <span className="speaking-bar" />
-                          <span className="speaking-bar" />
-                          <span className="speaking-bar" />
-                        </span>
-                        {" "}Agent speaking
-                      </>
-                    ) : (
-                      "Listening"
-                    )}
-                  </strong>
-                </div>
-                <div className="status-box">
-                  <span>Conversation ID</span>
-                  <strong>{conversationId || "Pending"}</strong>
-                </div>
+            {phase !== "processing" && phase !== "feedback" && conversation.status === "connected" && (
+              <div className="mode-indicator-wrap">
+                {conversation.isSpeaking ? (
+                  <div className="mode-indicator mode-speaking">
+                    <span className="speaking-bars-large" aria-hidden="true">
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                      <span className="speaking-bar-lg" />
+                    </span>
+                    <p className="mode-label">Agent speaking</p>
+                  </div>
+                ) : (
+                  <div className="mode-indicator mode-listening">
+                    <Ear className="ear-icon" weight="duotone" />
+                    <p className="mode-label">Listening...</p>
+                  </div>
+                )}
+                <span className={`connection-indicator ${conversation.status}`} />
               </div>
             )}
 
-            {(phase === "active" || phase === "winding_down" || phase === "overtime") && (
-              <section className="transcript-panel">
-                <div className="panel-heading">
-                  <div>
-                    <p className="section-label">Interview privacy</p>
-                    <h2>No live transcript on screen</h2>
+            {phase !== "processing" && phase !== "feedback" && conversation.status === "connecting" && (
+              <div className="mode-indicator-wrap">
+                <div className="mode-indicator">
+                  <div className="processing-indicator">
+                    <div className="processing-dot" />
+                    <div className="processing-dot" />
+                    <div className="processing-dot" />
                   </div>
+                  <p className="mode-label">Connecting...</p>
                 </div>
-
-                <p className="section-copy">
-                  Your answers stay off-screen during the interview. We still capture the transcript in
-                  the background so the hiring team can review the completed session afterward.
-                </p>
-              </section>
+              </div>
             )}
 
             {phase === "processing" && (
@@ -577,9 +589,62 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
                     ))}
                   </ul>
                 </div>
+                <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
+                  <button
+                    className="secondary-button"
+                    type="button"
+                    onClick={() => {
+                      if (candidateFeedback && bootstrap) {
+                        downloadFeedbackText(candidateFeedback, bootstrap.candidateName, bootstrap.roleTitle);
+                      }
+                    }}
+                  >
+                    <DownloadSimple weight="duotone" size={18} />
+                    Download feedback
+                  </button>
+                </div>
                 <p className="fine-print">
                   This is a high-level summary. The full evaluation has been sent to the hiring team.
                 </p>
+
+                {!experienceSubmitted ? (
+                  <div className="feedback-section" style={{ borderTop: "1px solid var(--line)", paddingTop: "1rem" }}>
+                    <p className="section-label">How was your experience?</p>
+                    <div style={{ display: "flex", gap: "0.5rem", margin: "0.5rem 0" }}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setExperienceRating(star)}
+                          className="star-button"
+                          style={{ opacity: star <= experienceRating ? 1 : 0.3 }}
+                          aria-label={`Rate ${star} out of 5`}
+                        >
+                          &#9733;
+                        </button>
+                      ))}
+                    </div>
+                    <textarea
+                      value={experienceComment}
+                      onChange={(e) => setExperienceComment(e.target.value)}
+                      placeholder="Optional: share any thoughts on how the interview went..."
+                      rows={3}
+                      className="experience-textarea"
+                    />
+                    <button
+                      className="secondary-button"
+                      type="button"
+                      onClick={submitExperienceFeedback}
+                      disabled={experienceRating < 1 || experienceSubmitting}
+                    >
+                      {experienceSubmitting ? "Sending..." : "Submit feedback"}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="section-copy" style={{ borderTop: "1px solid var(--line)", paddingTop: "1rem" }}>
+                    Thank you for your feedback.
+                  </p>
+                )}
               </section>
             )}
 
@@ -706,6 +771,31 @@ function formatTimerValue(totalSeconds: number) {
   const seconds = totalSeconds % 60;
 
   return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function downloadFeedbackText(feedback: CandidateFeedback, candidateName: string, roleTitle: string) {
+  const lines = [
+    "Interview Feedback Summary",
+    `Candidate: ${candidateName}`,
+    `Role: ${roleTitle}`,
+    `Generated: ${new Date().toISOString()}`,
+    "",
+    "--- Summary ---",
+    feedback.summary,
+    "",
+    "--- Strengths ---",
+    ...feedback.strengths.map((s, i) => `${i + 1}. ${s}`),
+    "",
+    "--- Areas to Consider ---",
+    ...feedback.concerns.map((c, i) => `${i + 1}. ${c}`),
+  ];
+  const blob = new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `interview-feedback-${candidateName.replace(/\s+/g, "-").toLowerCase()}.txt`;
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 function formatConversationError(message: string, context?: ConversationErrorContext) {
