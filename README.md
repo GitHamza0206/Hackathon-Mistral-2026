@@ -61,6 +61,12 @@ GITHUB_TOKEN=...
 # alias also supported:
 # GITHUB_API_TOKEN=...
 ENABLE_GITHUB_ENRICHMENT=false
+
+# AWS Bedrock (optional — routes preprocessing + scoring through Bedrock instead of Mistral API)
+USE_BEDROCK=true
+AWS_BEARER_TOKEN_BEDROCK=...
+AWS_REGION=us-east-1
+BEDROCK_MISTRAL_MODEL=mistral.mistral-large-2407-v1:0
 ```
 
 Notes:
@@ -69,6 +75,7 @@ Notes:
 - If `KV_REST_API_URL` and `KV_REST_API_TOKEN` are missing, the app falls back to local file storage in `.data/storage.json`.
 - GitHub enrichment is disabled unless `ENABLE_GITHUB_ENRICHMENT=true`.
 - `NEXT_PUBLIC_APP_URL` falls back to the request origin or `http://localhost:3000`, but setting it explicitly is safer for shared environments.
+- **Bedrock mode**: Set `USE_BEDROCK=true` to route preprocessing and scoring through AWS Bedrock instead of the Mistral API directly. You need a Bedrock API key (`AWS_BEARER_TOKEN_BEDROCK`) generated from the [AWS Bedrock console](https://console.aws.amazon.com/bedrock). PDF OCR still uses the Mistral API (`MISTRAL_API_KEY` is still required).
 
 Run the app:
 
@@ -170,9 +177,12 @@ components/                   Feature components
 
 lib/                          Domain logic and services
 ├── admin-auth.ts             Admin authentication helpers
+├── bedrock.ts                AWS Bedrock client for Mistral chat calls
 ├── elevenlabs.ts             Agent creation and transcript retrieval
+├── env.ts                    Environment variable helpers
+├── github.ts                 GitHub API client (fetch public repos)
 ├── interviews.ts             Core types (SessionBootstrap, CandidateSessionRecord, etc.)
-├── mistral.ts                Transcript scoring via Mistral
+├── mistral.ts                Transcript scoring via Mistral (or Bedrock)
 ├── preprocess.ts             Candidate/JD preprocessing and interview strategy
 ├── prompt.ts                 System prompt and session bootstrap builder
 ├── storage.ts                KV-backed persistence with local JSON fallback
