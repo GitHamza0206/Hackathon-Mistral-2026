@@ -2,7 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { kv } from "@vercel/kv";
 import { hasKvConfig } from "@/lib/env";
-import type { CandidateSessionRecord, RoleTemplateRecord } from "@/lib/interviews";
+import type { CandidateSessionRecord, PlatformCounters, RoleTemplateRecord } from "@/lib/interviews";
+import { createEmptyPlatformCounters } from "@/lib/interviews";
 
 function roleKey(id: string) {
   return `role:${id}`;
@@ -16,6 +17,7 @@ function roleSessionsKey(roleId: string) {
   return `role_sessions:${roleId}`;
 }
 
+const platformCountersKey = "platform:counters";
 const recentRolesKey = "roles:recent";
 const recentSessionsKey = "candidate_sessions:recent";
 const allSessionsKey = "candidate_sessions:all";
@@ -28,6 +30,7 @@ interface LocalStorageSnapshot {
   sessions: Record<string, CandidateSessionRecord>;
   recentSessionIds: string[];
   roleSessionIds: Record<string, string[]>;
+  counters?: PlatformCounters;
 }
 
 let localWriteQueue = Promise.resolve<LocalStorageSnapshot | void>(undefined);
@@ -124,6 +127,7 @@ async function readLocalSnapshot() {
       sessions: parsed.sessions ?? {},
       recentSessionIds: parsed.recentSessionIds ?? [],
       roleSessionIds: parsed.roleSessionIds ?? {},
+      counters: parsed.counters,
     };
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") {
@@ -312,8 +316,79 @@ export async function updateCandidateSession(
   return updated;
 }
 
+export async function getPlatformCounters(): Promise<PlatformCounters> {
+  if (hasKvConfig()) {
+    const counters = await kv.get<PlatformCounters>(platformCountersKey);
+    return counters ?? createEmptyPlatformCounters();
+  }
+
+  const snapshot = await getLocalSnapshot();
+  return snapshot.counters ?? createEmptyPlatformCounters();
+}
+
+export async function updatePlatformCounters(
+  mutator: (counters: PlatformCounters) => PlatformCounters,
+): Promise<void> {
+  if (hasKvConfig()) {
+    const current = await getPlatformCounters();
+    const next = mutator(current);
+    await kv.set(platformCountersKey, next);
+    return;
+  }
+
+  await updateLocalSnapshot((snapshot) => {
+    const current = snapshot.counters ?? createEmptyPlatformCounters();
+    snapshot.counters = mutator(current);
+  });
+}
+
+export async function deleteRoleTemplate(id: string) {
+  if (hasKvConfig()) {
+    await kv.del(roleKey(id));
+    return;
+  }
+
+  await updateLocalSnapshot((snapshot) => {
+    delete snapshot.roles[id];
+    snapshot.recentRoleIds = snapshot.recentRoleIds.filter((existingId) => existingId !== id);
+  });
+}
+
+export async function deleteCandidateSession(id: string) {
+  if (hasKvConfig()) {
+    await kv.del(sessionKey(id));
+    return;
+  }
+
+  await updateLocalSnapshot((snapshot) => {
+    const record = snapshot.sessions[id];
+    delete snapshot.sessions[id];
+    snapshot.recentSessionIds = snapshot.recentSessionIds.filter((existingId) => existingId !== id);
+    if (record) {
+      snapshot.roleSessionIds[record.roleId] = (snapshot.roleSessionIds[record.roleId] ?? []).filter(
+        (existingId) => existingId !== id,
+      );
+    }
+  });
+}
+
 export async function listRecentCandidateSessions(limit = 6) {
   return listCandidateSessions(limit);
+}
+
+export async function listCandidateSessionsByRole(roleId: string): Promise<CandidateSessionRecord[]> {
+  if (hasKvConfig()) {
+    const allSessions = await listCandidateSessions();
+    return allSessions.filter((session) => session.roleId === roleId);
+  }
+
+  const snapshot = await getLocalSnapshot();
+  const sessionIds = snapshot.roleSessionIds[roleId] ?? [];
+  const records = sessionIds
+    .map((id) => snapshot.sessions[id])
+    .filter((record): record is CandidateSessionRecord => Boolean(record));
+
+  return sortCandidateSessions(records);
 }
 
 export async function listCandidateSessions(limit?: number) {

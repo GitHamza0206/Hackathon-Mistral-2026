@@ -2,10 +2,12 @@ import { NextResponse } from "next/server";
 import { fetchConversationTranscript } from "@/lib/elevenlabs";
 import { scoreCandidateSession } from "@/lib/mistral";
 import {
+  extractCandidateFeedback,
   preferSavedTranscript,
+  resolvePostScoringStatus,
   validateCandidateSessionCompletionInput,
 } from "@/lib/interviews";
-import { getCandidateSession, updateCandidateSession } from "@/lib/storage";
+import { getCandidateSession, updateCandidateSession, updatePlatformCounters } from "@/lib/storage";
 
 interface RouteContext {
   params: Promise<{ sessionId: string }>;
@@ -56,9 +58,15 @@ export async function POST(request: Request, context: RouteContext) {
 
     const scorecard = await scoreCandidateSession(transcript);
 
+    const finalStatus = resolvePostScoringStatus(
+      scorecard.overallScore,
+      session.roleSnapshot.rejectThreshold,
+      session.roleSnapshot.advanceThreshold,
+    );
+
     await updateCandidateSession(sessionId, (current) => ({
       ...current,
-      status: "scored",
+      status: finalStatus,
       sessionStartedAt: current.sessionStartedAt ?? current.createdAt,
       sessionEndedAt,
       conversationId: payload.data?.conversationId ?? current.conversationId,
@@ -67,7 +75,27 @@ export async function POST(request: Request, context: RouteContext) {
       error: undefined,
     }));
 
-    return NextResponse.json({ ok: true, status: "scored" });
+    try {
+      const startMs = Date.parse(session.sessionStartedAt ?? session.createdAt);
+      const endMs = Date.parse(sessionEndedAt);
+      const durationSeconds =
+        Number.isFinite(startMs) && Number.isFinite(endMs)
+          ? Math.max(0, Math.floor((endMs - startMs) / 1000))
+          : 0;
+      await updatePlatformCounters((c) => ({
+        ...c,
+        interviewsConducted: c.interviewsConducted + 1,
+        totalInterviewSeconds: c.totalInterviewSeconds + durationSeconds,
+      }));
+    } catch (counterError) {
+      console.warn("[complete] counter increment failed:", counterError);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      status: finalStatus,
+      candidateFeedback: extractCandidateFeedback(scorecard),
+    });
   } catch (error) {
     await updateCandidateSession(sessionId, (current) => ({
       ...current,

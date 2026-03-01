@@ -27,6 +27,18 @@ export function getMistralModel() {
   return getOptionalEnv("MISTRAL_MODEL") ?? "mistral-large-latest";
 }
 
+export function getBedrockMistralModel() {
+  return getOptionalEnv("BEDROCK_MISTRAL_MODEL") ?? "mistral.mistral-large-2407-v1:0";
+}
+
+export function getBedrockRegion() {
+  return getOptionalEnv("AWS_REGION") ?? "us-east-1";
+}
+
+export function usesBedrock() {
+  return getOptionalEnv("USE_BEDROCK") === "true";
+}
+
 export function getMistralOcrModel() {
   return getOptionalEnv("MISTRAL_OCR_MODEL") ?? "mistral-ocr-latest";
 }

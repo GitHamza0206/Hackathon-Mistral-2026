@@ -29,7 +29,7 @@ export async function POST(request: Request, context: RouteContext) {
   const updated =
     (await updateCandidateSession(sessionId, (current) => {
       const isTerminalStatus =
-        current.status === "completed" || current.status === "scored" || current.status === "failed";
+        current.status === "completed" || current.status === "scored" || current.status === "rejected" || current.status === "under_review" || current.status === "next_round" || current.status === "failed";
 
       return {
         ...current,

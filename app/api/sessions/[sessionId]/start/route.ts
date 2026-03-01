@@ -19,10 +19,10 @@ export async function POST(_: Request, context: RouteContext) {
     (await updateCandidateSession(sessionId, (current) => ({
       ...current,
       status:
-        current.status === "completed" || current.status === "scored" ? current.status : "in_progress",
+        ["completed", "scored", "rejected", "under_review", "next_round"].includes(current.status) ? current.status : "in_progress",
       sessionStartedAt: current.sessionStartedAt ?? startedAt,
       sessionEndedAt:
-        current.status === "completed" || current.status === "scored" ? current.sessionEndedAt : undefined,
+        ["completed", "scored", "rejected", "under_review", "next_round"].includes(current.status) ? current.sessionEndedAt : undefined,
       error: undefined,
     }))) ?? session;
 

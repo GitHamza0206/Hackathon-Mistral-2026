@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { hasAdminSession } from "@/lib/admin-auth";
-import { clipText } from "@/lib/interviews";
 import { ensureSessionTranscript } from "@/lib/session-transcript";
 import { getCandidateSession } from "@/lib/storage";
+import { DownloadButtons } from "@/components/download-buttons";
+import { SessionActions } from "@/components/session-actions";
 
 interface AdminSessionPageProps {
   params: Promise<{ sessionId: string }>;
@@ -35,6 +36,9 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
 
   const hydratedSession = await ensureSessionTranscript(session);
 
+  const rejectThreshold = hydratedSession.roleSnapshot.rejectThreshold ?? 40;
+  const advanceThreshold = hydratedSession.roleSnapshot.advanceThreshold ?? 90;
+
   return (
     <main className="results-shell">
       <section className="results-card">
@@ -43,7 +47,7 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
             <p className="section-label">Admin review</p>
             <h1>{hydratedSession.candidateProfile.candidateName}</h1>
           </div>
-          <span className="status-pill">{hydratedSession.status}</span>
+          <span className="status-pill">{formatStatusLabel(hydratedSession.status)}</span>
         </div>
 
         <div className="results-grid">
@@ -67,6 +71,10 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
                 <dd>{hydratedSession.roleSnapshot.focusAreas.join(", ")}</dd>
               </div>
               <div>
+                <dt>Thresholds</dt>
+                <dd>Reject &lt; {rejectThreshold} &middot; Review {rejectThreshold}&ndash;{advanceThreshold - 1} &middot; Advance &ge; {advanceThreshold}</dd>
+              </div>
+              <div>
                 <dt>Conversation ID</dt>
                 <dd>{hydratedSession.conversationId ?? "Pending"}</dd>
               </div>
@@ -87,20 +95,53 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
                 <dd>{String(hydratedSession.transcript?.length ?? 0)}</dd>
               </div>
             </dl>
+
             <div className="notes-panel">
-              <p className="section-label">Job description snapshot</p>
-              <p>{clipText(hydratedSession.roleSnapshot.jobDescriptionText, 1800)}</p>
+              <p className="section-label">Interview template</p>
+              <p className="section-copy">
+                <Link href={`/admin/interviews/${hydratedSession.roleId}`}>View interview template</Link>
+              </p>
             </div>
+
             {hydratedSession.roleSnapshot.adminNotes ? (
               <div className="notes-panel">
                 <p className="section-label">Internal hiring notes</p>
                 <p>{hydratedSession.roleSnapshot.adminNotes}</p>
               </div>
             ) : null}
+
+            {hydratedSession.candidateExperienceFeedback ? (
+              <div className="notes-panel">
+                <p className="section-label">Candidate experience feedback</p>
+                <div style={{ display: "flex", gap: "0.3rem", alignItems: "center", margin: "0.5rem 0" }}>
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <span
+                      key={star}
+                      style={{
+                        fontSize: "1.2rem",
+                        opacity: star <= hydratedSession.candidateExperienceFeedback!.rating ? 1 : 0.25,
+                        color: "#f59e0b",
+                      }}
+                    >
+                      &#9733;
+                    </span>
+                  ))}
+                  <span style={{ marginLeft: "0.5rem", fontSize: "0.85rem", color: "var(--muted)" }}>
+                    ({hydratedSession.candidateExperienceFeedback.rating}/5)
+                  </span>
+                </div>
+                {hydratedSession.candidateExperienceFeedback.comment ? (
+                  <p className="section-copy">{hydratedSession.candidateExperienceFeedback.comment}</p>
+                ) : null}
+                <p className="fine-print" style={{ marginTop: "0.5rem" }}>
+                  Submitted {formatTimestamp(hydratedSession.candidateExperienceFeedback.submittedAt)}
+                </p>
+              </div>
+            ) : null}
           </section>
 
           <section className="results-panel">
-            <p className="section-label">Candidate profile</p>
+            <p className="section-label">Candidate</p>
             <dl className="detail-list">
               <div>
                 <dt>Name</dt>
@@ -112,33 +153,13 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
               </div>
               <div>
                 <dt>GitHub</dt>
-                <dd>{hydratedSession.candidateProfile.githubUrl}</dd>
-              </div>
-              <div>
-                <dt>CV file</dt>
-                <dd>{hydratedSession.candidateProfile.cvFileName}</dd>
-              </div>
-              <div>
-                <dt>Cover letter file</dt>
-                <dd>{hydratedSession.candidateProfile.coverLetterFileName ?? "Not provided"}</dd>
+                <dd>
+                  <a href={hydratedSession.candidateProfile.githubUrl} target="_blank" rel="noopener noreferrer">
+                    {hydratedSession.candidateProfile.githubUrl}
+                  </a>
+                </dd>
               </div>
             </dl>
-            {hydratedSession.candidateProfile.extraNote ? (
-              <div className="notes-panel">
-                <p className="section-label">Candidate note</p>
-                <p>{hydratedSession.candidateProfile.extraNote}</p>
-              </div>
-            ) : null}
-            <div className="notes-panel">
-              <p className="section-label">CV text snapshot</p>
-              <p>{clipText(hydratedSession.candidateProfile.cvText, 1500)}</p>
-            </div>
-            {hydratedSession.candidateProfile.coverLetterText ? (
-              <div className="notes-panel">
-                <p className="section-label">Cover letter snapshot</p>
-                <p>{clipText(hydratedSession.candidateProfile.coverLetterText, 1100)}</p>
-              </div>
-            ) : null}
           </section>
         </div>
 
@@ -153,6 +174,13 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
                   <p>Estimated level: {hydratedSession.scorecard.seniorityEstimate}</p>
                 </div>
               </div>
+
+              <ThresholdBar
+                score={hydratedSession.scorecard.overallScore}
+                rejectThreshold={rejectThreshold}
+                advanceThreshold={advanceThreshold}
+              />
+
               <div className="score-grid">
                 <Metric label="Technical depth" value={hydratedSession.scorecard.technicalDepthScore} />
                 <Metric
@@ -179,7 +207,18 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
               Scorecard not available yet. {hydratedSession.error ? `Latest error: ${hydratedSession.error}` : ""}
             </p>
           )}
+
+          <DownloadButtons
+            candidateName={hydratedSession.candidateProfile.candidateName}
+            scorecard={hydratedSession.scorecard}
+            transcript={hydratedSession.transcript}
+          />
         </section>
+
+        <SessionActions
+          sessionId={hydratedSession.id}
+          currentStatus={hydratedSession.status}
+        />
 
         <section className="results-panel transcript-review">
           <div className="panel-heading">
@@ -210,6 +249,53 @@ export default async function AdminSessionPage({ params }: AdminSessionPageProps
   );
 }
 
+
+function ThresholdBar({
+  score,
+  rejectThreshold,
+  advanceThreshold,
+}: {
+  score: number;
+  rejectThreshold: number;
+  advanceThreshold: number;
+}) {
+  const clampedScore = Math.max(0, Math.min(100, score));
+  const scoreZone =
+    clampedScore < rejectThreshold ? "reject" : clampedScore >= advanceThreshold ? "advance" : "review";
+
+  return (
+    <div className="threshold-bar-wrap">
+      <div className="threshold-bar">
+        <div className="threshold-bar-zones">
+          <div
+            className="threshold-zone threshold-zone-reject"
+            style={{ width: `${rejectThreshold}%` }}
+          />
+          <div
+            className="threshold-zone threshold-zone-review"
+            style={{ width: `${advanceThreshold - rejectThreshold}%` }}
+          />
+          <div
+            className="threshold-zone threshold-zone-advance"
+            style={{ width: `${100 - advanceThreshold}%` }}
+          />
+        </div>
+        <div
+          className={`threshold-score-marker threshold-score-${scoreZone}`}
+          style={{ left: `${clampedScore}%` }}
+        >
+          <span>{score}</span>
+        </div>
+      </div>
+      <div className="threshold-labels">
+        <span>Reject &lt; {rejectThreshold}</span>
+        <span>Review</span>
+        <span>Advance &ge; {advanceThreshold}</span>
+      </div>
+    </div>
+  );
+}
+
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="metric-card">
@@ -234,6 +320,10 @@ function ReviewList({ label, items }: { label: string; items: string[] }) {
       )}
     </div>
   );
+}
+
+function formatStatusLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatTimestamp(value?: string) {

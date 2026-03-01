@@ -10,6 +10,9 @@ export type CandidateSessionStatus =
   | "in_progress"
   | "completed"
   | "scored"
+  | "rejected"
+  | "under_review"
+  | "next_round"
   | "failed";
 
 export interface GitHubRepo {
@@ -46,6 +49,8 @@ export interface RoleTemplateInput {
   focusAreas: string[];
   companyName?: string;
   adminNotes?: string;
+  rejectThreshold?: number;
+  advanceThreshold?: number;
 }
 
 export interface RoleTemplateRecord extends RoleTemplateInput {
@@ -61,6 +66,7 @@ export interface CandidateSubmissionInput {
   candidateName: string;
   candidateEmail?: string;
   githubUrl: string;
+  personalWebsiteUrl?: string;
   extraNote?: string;
 }
 
@@ -70,6 +76,7 @@ export interface CandidateProfileRecord extends CandidateSubmissionInput {
   coverLetterFileName?: string;
   coverLetterText?: string;
   githubRepos?: GitHubRepo[];
+  personalWebsiteText?: string;
 }
 
 export interface CandidateSessionRoleSnapshot {
@@ -80,6 +87,8 @@ export interface CandidateSessionRoleSnapshot {
   companyName?: string;
   adminNotes?: string;
   jobDescriptionText: string;
+  rejectThreshold?: number;
+  advanceThreshold?: number;
 }
 
 export interface TranscriptEntry {
@@ -103,6 +112,44 @@ export interface Scorecard {
   summary: string;
 }
 
+export interface CandidateFeedback {
+  strengths: string[];
+  concerns: string[];
+  summary: string;
+}
+
+export interface CandidateExperienceFeedback {
+  rating: number;
+  comment?: string;
+  submittedAt: string;
+}
+
+export interface PlatformCounters {
+  rolesCreated: number;
+  sessionsCreated: number;
+  interviewsConducted: number;
+  totalInterviewSeconds: number;
+  uniqueGithubUrls: string[];
+}
+
+export function createEmptyPlatformCounters(): PlatformCounters {
+  return {
+    rolesCreated: 0,
+    sessionsCreated: 0,
+    interviewsConducted: 0,
+    totalInterviewSeconds: 0,
+    uniqueGithubUrls: [],
+  };
+}
+
+export function extractCandidateFeedback(scorecard: Scorecard): CandidateFeedback {
+  return {
+    strengths: scorecard.strengths,
+    concerns: scorecard.concerns,
+    summary: scorecard.summary,
+  };
+}
+
 export interface CandidateSessionRecord {
   id: string;
   roleId: string;
@@ -118,6 +165,7 @@ export interface CandidateSessionRecord {
   scorecard?: Scorecard;
   interviewStrategy?: InterviewStrategy;
   error?: string;
+  candidateExperienceFeedback?: CandidateExperienceFeedback;
 }
 
 export interface RoleBootstrap {
@@ -145,6 +193,7 @@ export interface SessionBootstrap {
   candidateName: string;
   roleTitle: string;
   durationMinutes: number;
+  focusAreas: string[];
   agentId: string;
   status: CandidateSessionStatus;
   intro: string;
@@ -152,6 +201,7 @@ export interface SessionBootstrap {
   transcript?: TranscriptEntry[];
   sessionStartedAt?: string;
   sessionEndedAt?: string;
+  candidateFeedback?: CandidateFeedback;
 }
 
 export interface CandidateSessionSyncInput {
@@ -222,8 +272,33 @@ export function validateRoleTemplateInput(payload: unknown): ValidationResult<Ro
   const durationMinutes =
     typeof durationMinutesRaw === "number" ? durationMinutesRaw : Number(durationMinutesRaw);
 
-  if (!Number.isFinite(durationMinutes) || durationMinutes < 10 || durationMinutes > 90) {
-    errors.durationMinutes = "Choose an interview duration between 10 and 90 minutes.";
+  if (!Number.isFinite(durationMinutes) || durationMinutes < 1 || durationMinutes > 90) {
+    errors.durationMinutes = "Choose an interview duration between 1 and 90 minutes.";
+  }
+
+  const rejectThresholdRaw = readValue(payload, "rejectThreshold");
+  const advanceThresholdRaw = readValue(payload, "advanceThreshold");
+  const rejectThreshold =
+    rejectThresholdRaw != null ? Number(rejectThresholdRaw) : undefined;
+  const advanceThreshold =
+    advanceThresholdRaw != null ? Number(advanceThresholdRaw) : undefined;
+
+  if (rejectThreshold != null && (!Number.isFinite(rejectThreshold) || rejectThreshold < 0 || rejectThreshold > 100)) {
+    errors.rejectThreshold = "Reject threshold must be between 0 and 100.";
+  }
+
+  if (advanceThreshold != null && (!Number.isFinite(advanceThreshold) || advanceThreshold < 0 || advanceThreshold > 100)) {
+    errors.advanceThreshold = "Advance threshold must be between 0 and 100.";
+  }
+
+  if (
+    rejectThreshold != null &&
+    advanceThreshold != null &&
+    Number.isFinite(rejectThreshold) &&
+    Number.isFinite(advanceThreshold) &&
+    rejectThreshold >= advanceThreshold
+  ) {
+    errors.rejectThreshold = "Reject threshold must be lower than the advance threshold.";
   }
 
   if (Object.keys(errors).length > 0) {
@@ -238,6 +313,8 @@ export function validateRoleTemplateInput(payload: unknown): ValidationResult<Ro
       focusAreas: focusAreas.slice(0, 8),
       companyName,
       adminNotes,
+      rejectThreshold: rejectThreshold ?? 40,
+      advanceThreshold: advanceThreshold ?? 90,
     },
   };
 }
@@ -252,6 +329,7 @@ export function validateCandidateSubmissionInput(
   const candidateName = readString(payload, "candidateName");
   const candidateEmail = readOptionalString(payload, "candidateEmail");
   const githubUrl = readString(payload, "githubUrl");
+  const personalWebsiteUrl = readOptionalString(payload, "personalWebsiteUrl");
   const extraNote = readOptionalString(payload, "extraNote");
   const errors: Record<string, string> = {};
 
@@ -267,6 +345,17 @@ export function validateCandidateSubmissionInput(
     errors.githubUrl = "Paste a valid public GitHub profile URL.";
   }
 
+  if (personalWebsiteUrl) {
+    try {
+      const parsed = new URL(personalWebsiteUrl);
+      if (!["http:", "https:"].includes(parsed.protocol)) {
+        errors.personalWebsiteUrl = "Use an http or https URL for your personal website.";
+      }
+    } catch {
+      errors.personalWebsiteUrl = "Use a valid URL for your personal website.";
+    }
+  }
+
   if (Object.keys(errors).length > 0) {
     return { errors };
   }
@@ -276,6 +365,7 @@ export function validateCandidateSubmissionInput(
       candidateName,
       candidateEmail,
       githubUrl,
+      personalWebsiteUrl,
       extraNote,
     },
   };
@@ -354,7 +444,21 @@ export function createRoleSnapshot(role: RoleTemplateRecord): CandidateSessionRo
     companyName: role.companyName,
     adminNotes: role.adminNotes,
     jobDescriptionText: role.jobDescriptionText,
+    rejectThreshold: role.rejectThreshold,
+    advanceThreshold: role.advanceThreshold,
   };
+}
+
+export function resolvePostScoringStatus(
+  score: number,
+  rejectThreshold: number | undefined,
+  advanceThreshold: number | undefined,
+): CandidateSessionStatus {
+  const reject = rejectThreshold ?? 40;
+  const advance = advanceThreshold ?? 90;
+  if (score < reject) return "rejected";
+  if (score >= advance) return "next_round";
+  return "under_review";
 }
 
 export function clipText(text: string, maxChars: number) {
@@ -418,6 +522,35 @@ function readString(value: unknown, key: string) {
 function readOptionalString(value: unknown, key: string) {
   const item = readValue(value, key);
   return typeof item === "string" && item.trim() ? item.trim() : undefined;
+}
+
+export function validateCandidateExperienceFeedback(
+  payload: unknown,
+): ValidationResult<CandidateExperienceFeedback> {
+  if (!payload || typeof payload !== "object") {
+    return { errors: { form: "Invalid request body." } };
+  }
+
+  const ratingRaw = readValue(payload, "rating");
+  const comment = readOptionalString(payload, "comment");
+  const errors: Record<string, string> = {};
+
+  const rating = typeof ratingRaw === "number" ? ratingRaw : Number(ratingRaw);
+  if (!Number.isFinite(rating) || rating < 1 || rating > 5) {
+    errors.rating = "Rating must be between 1 and 5.";
+  }
+
+  if (Object.keys(errors).length > 0) {
+    return { errors };
+  }
+
+  return {
+    data: {
+      rating,
+      comment,
+      submittedAt: new Date().toISOString(),
+    },
+  };
 }
 
 function readValue(value: unknown, key: string) {

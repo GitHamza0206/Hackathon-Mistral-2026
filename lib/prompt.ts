@@ -6,7 +6,7 @@ import type {
   SessionBootstrap,
   TranscriptEntry,
 } from "@/lib/interviews";
-import { clipText } from "@/lib/interviews";
+import { clipText, extractCandidateFeedback } from "@/lib/interviews";
 
 export function buildRoleApplyIntro(role: RoleTemplateRecord) {
   const companyPrefix = role.companyName ? `${role.companyName} is hiring for` : "This interview is for";
@@ -25,6 +25,7 @@ export function buildSessionBootstrap(
     candidateName: session.candidateProfile.candidateName,
     roleTitle: session.roleSnapshot.roleTitle,
     durationMinutes: session.roleSnapshot.durationMinutes,
+    focusAreas: session.roleSnapshot.focusAreas,
     agentId: session.agentId ?? "",
     status: session.status,
     intro: buildSessionIntro(session),
@@ -32,6 +33,10 @@ export function buildSessionBootstrap(
     transcript: session.transcript ?? [],
     sessionStartedAt: session.sessionStartedAt,
     sessionEndedAt: session.sessionEndedAt,
+    candidateFeedback:
+      ["scored", "rejected", "under_review", "next_round"].includes(session.status) && session.scorecard
+        ? extractCandidateFeedback(session.scorecard)
+        : undefined,
   };
 }
 
@@ -93,15 +98,19 @@ const preferredTechnicalQuestionExamples: TechnicalQuestionExample[] = [
   },
 ];
 
-function buildInterviewAgentIdentity(session: CandidateSessionRecord) {
-  const companyName = session.roleSnapshot.companyName?.trim();
-  return companyName ? `an AI interview agent for ${companyName}` : "an AI interview agent";
-}
+const defaultCoverageAreas = [
+  "LLM engineering fundamentals and production tradeoffs",
+  "RAG, evaluation, and retrieval design",
+  "Tool use and orchestration",
+  "Debugging and incident handling",
+  "System design and scaling decisions",
+  "Communication and reasoning clarity",
+];
 
-function pickOpeningTechnicalQuestion(session: CandidateSessionRecord) {
+function buildSessionCorpus(session: CandidateSessionRecord): string {
   const role = session.roleSnapshot;
   const candidate = session.candidateProfile;
-  const corpus = [
+  return [
     role.roleTitle,
     role.targetSeniority,
     role.focusAreas.join(" "),
@@ -111,10 +120,76 @@ function pickOpeningTechnicalQuestion(session: CandidateSessionRecord) {
     candidate.coverLetterText ?? "",
     candidate.extraNote ?? "",
     candidate.githubUrl,
+    candidate.personalWebsiteText ?? "",
   ]
     .join(" ")
     .toLowerCase();
+}
 
+function selectPatternsForBudget(
+  budget: number,
+  session: CandidateSessionRecord,
+): TechnicalQuestionExample[] {
+  const adminNotes = session.roleSnapshot.adminNotes?.toLowerCase() ?? "";
+  const limit = Math.min(budget + 1, 3);
+
+  if (adminNotes) {
+    const matching = preferredTechnicalQuestionExamples.filter((example) =>
+      example.keywords.some((keyword) => adminNotes.includes(keyword)),
+    );
+    if (matching.length > 0) {
+      return matching.slice(0, limit);
+    }
+  }
+
+  const corpus = buildSessionCorpus(session);
+  const scored = preferredTechnicalQuestionExamples.map((example) => ({
+    example,
+    score: example.keywords.filter((k) => corpus.includes(k)).length,
+  }));
+  scored.sort((a, b) => b.score - a.score);
+  return scored.slice(0, Math.max(limit, 2)).map((s) => s.example);
+}
+
+function selectCoverageForBudget(
+  budget: number,
+  session: CandidateSessionRecord,
+): string[] {
+  const adminNotes = session.roleSnapshot.adminNotes?.toLowerCase() ?? "";
+  const limit = Math.min(budget + 1, 3);
+
+  if (adminNotes) {
+    const matching = defaultCoverageAreas.filter((area) => {
+      const areaLower = area.toLowerCase();
+      const noteWords = adminNotes.split(/\s+/).filter((w) => w.length > 3);
+      return noteWords.some((word) => areaLower.includes(word));
+    });
+    if (matching.length > 0) {
+      return matching.slice(0, limit);
+    }
+  }
+
+  return defaultCoverageAreas.slice(0, Math.max(limit, 2));
+}
+
+function buildInterviewAgentIdentity(session: CandidateSessionRecord) {
+  const companyName = session.roleSnapshot.companyName?.trim();
+  return companyName ? `an AI interview agent for ${companyName}` : "an AI interview agent";
+}
+
+function pickOpeningTechnicalQuestion(session: CandidateSessionRecord) {
+  const adminNotes = session.roleSnapshot.adminNotes?.toLowerCase() ?? "";
+
+  if (adminNotes) {
+    const adminMatch = preferredTechnicalQuestionExamples.find((example) =>
+      example.keywords.some((keyword) => adminNotes.includes(keyword)),
+    );
+    if (adminMatch) {
+      return adminMatch.broadQuestion;
+    }
+  }
+
+  const corpus = buildSessionCorpus(session);
   const match =
     preferredTechnicalQuestionExamples.find((example) =>
       example.keywords.some((keyword) => corpus.includes(keyword)),
@@ -143,23 +218,60 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
   const candidate = session.candidateProfile;
   const identity = buildInterviewAgentIdentity(session);
   const strategy = session.interviewStrategy;
+  const durationMinutes = role.durationMinutes;
+  const technicalQuestionBudget = Math.max(1, Math.floor((durationMinutes - 3) / 10));
 
-  const base = [
+  const base: (string | undefined)[] = [
     "You are a candidate-facing AI engineer screener conducting a live technical interview.",
+  ];
+
+  // === ADMIN NOTES: HIGHEST PRIORITY, FIRST POSITION ===
+  if (role.adminNotes) {
+    base.push(
+      "",
+      "=== CRITICAL: HIRING MANAGER DIRECTIVES (OVERRIDE ALL DEFAULTS) ===",
+      "The hiring manager has provided the following directives. These OVERRIDE all default question patterns, coverage areas, and topic selections below. You MUST follow these instructions even if they contradict other parts of this prompt:",
+      "",
+      role.adminNotes,
+      "",
+      "If these directives specify which topics to focus on, ONLY ask about those topics.",
+      "If these directives say to avoid certain topics, you MUST NOT ask about them under any circumstances.",
+      "=== END HIRING MANAGER DIRECTIVES ===",
+    );
+  }
+
+  // === TOPIC BUDGET: SECOND PRIORITY ===
+  base.push(
+    "",
+    "=== STRICT TOPIC BUDGET ===",
+    `Total interview duration: ${durationMinutes} minutes.`,
+    `You have a HARD LIMIT of exactly ${technicalQuestionBudget} technical topic${technicalQuestionBudget > 1 ? "s" : ""}.`,
+    "For each topic: ask exactly 1 opening question, then at most 2 follow-ups (3 questions per topic maximum).",
+    `After completing topic ${technicalQuestionBudget}, you MUST IMMEDIATELY wind down. No exceptions.`,
+    "DO NOT ask about additional topics beyond this budget, even if time seems to remain.",
+    "=== END BUDGET ===",
+  );
+
+  // === PRIMARY OBJECTIVE ===
+  base.push(
     "",
     "Primary objective:",
     "- Evaluate the candidate against the hiring requirement supplied by the company.",
     "- Tailor your questions to both the job requirement and the candidate's submitted materials.",
+  );
+
+  // === ROLE REQUIREMENT (admin notes removed — already at top) ===
+  base.push(
     "",
     "Role requirement:",
     `- Role title: ${role.roleTitle}`,
     `- Target seniority: ${role.targetSeniority}`,
     `- Focus areas: ${role.focusAreas.join(", ")}`,
     role.companyName ? `- Company: ${role.companyName}` : undefined,
-    role.adminNotes ? `- Internal hiring notes: ${role.adminNotes}` : undefined,
     `- Job description:\n${clipText(role.jobDescriptionText, 7000)}`,
-  ];
+  );
 
+  // === STRATEGY OR CANDIDATE MATERIALS ===
   if (strategy) {
     const topicLines = strategy.keyTopics.map(
       (t) => `  - ${t.topic} (${t.depth}): ${t.reason}`,
@@ -207,9 +319,13 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
       candidate.coverLetterText
         ? `- Cover letter text:\n${clipText(candidate.coverLetterText, 3500)}`
         : "- Cover letter: not provided",
+      candidate.personalWebsiteText
+        ? `- Personal website content:\n${clipText(candidate.personalWebsiteText, 3000)}`
+        : undefined,
     );
   }
 
+  // === OPENING SCRIPT + PACING + BEHAVIOR ===
   base.push(
     "",
     "Opening script:",
@@ -240,32 +356,36 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     "- Probe when answers are vague or not supported by the submitted materials, but do so gently. Ask for clarification before challenging.",
     "- Prefer implementation realism, debugging, systems thinking, and tradeoff reasoning over trivia.",
     "- Adapt the difficulty to the stated target seniority and the evidence from the conversation.",
-    "- Use the preferred technical question examples as the default starting patterns, then adapt the order and follow-up depth to the role, job description, CV, cover letter, GitHub profile, and live conversation.",
     "- Do not reveal scoring logic or hidden evaluation criteria.",
     "- Do not provide the correct answer during the interview.",
     "- Close politely and say the hiring team will review the results.",
+  );
+
+  // === FILTERED PATTERNS AND COVERAGE (budget-gated) ===
+  const selectedPatterns = selectPatternsForBudget(technicalQuestionBudget, session);
+  const selectedCoverage = selectCoverageForBudget(technicalQuestionBudget, session);
+
+  base.push(
     "",
     "Technical questioning sequence:",
     "- Open with the scripted introduction, then move directly into one broad technical question.",
-    "- Keep the first three topics technical. For each topic, begin with one broad question, then ask single follow-ups one by one based on the candidate's replies.",
+    `- You have exactly ${technicalQuestionBudget} topic${technicalQuestionBudget > 1 ? "s" : ""} to cover. Do not exceed this.`,
+    "- For each topic, begin with one broad question, then ask single follow-ups one by one.",
     "- Do not bundle clarifications, tradeoffs, and implementation details into the same prompt.",
-    "- After the current follow-up is answered, either ask one more focused follow-up or transition naturally to the next topic.",
-    "- If one preferred example is not relevant, pick the closest alternative instead of switching to generic behavioral questions.",
     "",
-    "Preferred technical question patterns:",
-    ...preferredTechnicalQuestionExamples.flatMap((example) => [
+    `Preferred technical question patterns (select from these ${selectedPatterns.length}, matching your topic budget):`,
+    ...selectedPatterns.flatMap((example) => [
       `- ${example.title}:`,
       `  - Broad: ${example.broadQuestion}`,
       `  - Sample follow-up: ${example.sampleFollowUpQuestion}`,
     ]),
     "",
-    "Coverage areas:",
-    "- LLM engineering fundamentals and production tradeoffs",
-    "- RAG, evaluation, and retrieval design",
-    "- Tool use and orchestration",
-    "- Debugging and incident handling",
-    "- System design and scaling decisions",
-    "- Communication and reasoning clarity",
+    `Coverage areas (limited to ${selectedCoverage.length} for this interview):`,
+    ...selectedCoverage.map((area) => `- ${area}`),
+  );
+
+  // === HIDDEN EVALUATION ===
+  base.push(
     "",
     "Hidden evaluation guidance:",
     "- Look for alignment with the job requirement, not just general competence.",
@@ -273,6 +393,30 @@ export function buildCandidateAgentPrompt(session: CandidateSessionRecord) {
     "- Reward specific production experience, engineering judgment, and ownership.",
     "- A candidate who explains their reasoning clearly and acknowledges uncertainty is more valuable than one who sounds confident but stays surface-level.",
   );
+
+  // === REINFORCED WIND-DOWN ===
+  base.push(
+    "",
+    "Time management and wind-down:",
+    `- REMINDER: You have EXACTLY ${technicalQuestionBudget} topic${technicalQuestionBudget > 1 ? "s" : ""}. Count them as you go.`,
+    `- After topic ${technicalQuestionBudget} is complete, begin wind-down IMMEDIATELY.`,
+    "- During wind-down, ONLY invite the candidate to ask 1-2 questions about the role or company.",
+    "- Transition naturally: 'We are coming up on the end of our time together. Before we wrap up, I would love to give you a chance to ask one or two questions about the role or the company.'",
+    "- If the candidate continues on technical topics during wind-down, acknowledge briefly but DO NOT ask new questions.",
+    "- After wind-down, close politely: thank them for their time and say the hiring team will review the results. Do not re-open discussion.",
+    "- Answer the candidate's questions about the role or company briefly and honestly. If you do not know something, say so.",
+    "- IMPORTANT: Any content discussed after the planned duration will NOT be included in evaluation.",
+    "- Never rush the candidate. The wind-down should feel natural, not abrupt.",
+  );
+
+  // === PERSONAL WEBSITE ===
+  if (candidate.personalWebsiteText) {
+    base.push(
+      "",
+      "Personal website content (use to tailor follow-up questions):",
+      clipText(candidate.personalWebsiteText, 3000),
+    );
+  }
 
   return base.filter(Boolean).join("\n");
 }
@@ -297,16 +441,32 @@ export function buildPreprocessingPrompt(
   const role = session.roleSnapshot;
   const candidate = session.candidateProfile;
 
-  return [
+  const lines: (string | undefined)[] = [
     "You are an expert technical recruiter preparing an interviewer brief.",
     "Analyze the following candidate materials against the job requirement and produce a structured interview strategy.",
+  ];
+
+  if (role.adminNotes) {
+    lines.push(
+      "",
+      "=== CRITICAL: HIRING MANAGER DIRECTIVES ===",
+      "The hiring manager has provided the following specific instructions. Your interview strategy MUST prioritize these over default patterns:",
+      "",
+      role.adminNotes,
+      "",
+      "If the directives specify topics to focus on, your keyTopics and specificQuestions MUST align with these directives.",
+      "If the directives say to avoid certain topics, DO NOT include them in keyTopics or specificQuestions.",
+      "=== END DIRECTIVES ===",
+    );
+  }
+
+  lines.push(
     "",
     "Role requirement:",
     `- Role title: ${role.roleTitle}`,
     `- Target seniority: ${role.targetSeniority}`,
     `- Focus areas: ${role.focusAreas.join(", ")}`,
     role.companyName ? `- Company: ${role.companyName}` : undefined,
-    role.adminNotes ? `- Internal hiring notes: ${role.adminNotes}` : undefined,
     `- Job description:\n${clipText(role.jobDescriptionText, 7000)}`,
     "",
     "Candidate materials:",
@@ -315,6 +475,9 @@ export function buildPreprocessingPrompt(
     candidate.coverLetterText
       ? `- Cover letter text:\n${clipText(candidate.coverLetterText, 3500)}`
       : "- Cover letter: not provided",
+    candidate.personalWebsiteText
+      ? `- Personal website content:\n${clipText(candidate.personalWebsiteText, 3000)}`
+      : undefined,
     "",
     "GitHub repositories:",
     formatGitHubRepos(repos),
@@ -333,9 +496,9 @@ export function buildPreprocessingPrompt(
     "- interviewFocus (string): a brief paragraph describing the overall interview approach and what the interviewer should prioritize.",
     "",
     "Return valid JSON only.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  );
+
+  return lines.filter(Boolean).join("\n");
 }
 
 export function buildMistralScoringPrompt(transcript: TranscriptEntry[]) {
@@ -386,6 +549,7 @@ export function buildCandidateSubmissionFromForm(formData: FormData): CandidateS
     candidateName: getRoleFormValue(formData, "candidateName"),
     candidateEmail: getRoleFormValue(formData, "candidateEmail") || undefined,
     githubUrl: getRoleFormValue(formData, "githubUrl"),
+    personalWebsiteUrl: getRoleFormValue(formData, "personalWebsiteUrl") || undefined,
     extraNote: getRoleFormValue(formData, "extraNote") || undefined,
   };
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -10,6 +10,7 @@ import {
   ListChecks,
   Sparkle,
   SquaresFour,
+  Trash,
   WarningCircle,
 } from "@phosphor-icons/react";
 import { Badge } from "@/components/ui/badge";
@@ -41,12 +42,15 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkActionBar } from "@/components/bulk-action-bar";
 import { cn } from "@/lib/utils";
 import {
   splitFocusAreas,
   targetSeniorities,
   type CandidateSessionRecord,
   type CandidateSessionStatus,
+  type PlatformCounters,
   type RoleTemplateRecord,
   type TargetSeniority,
 } from "@/lib/interviews";
@@ -55,6 +59,7 @@ interface AdminConsoleProps {
   isAuthenticated: boolean;
   recentRoles: RoleTemplateRecord[];
   recentSessions: CandidateSessionRecord[];
+  counters: PlatformCounters | null;
 }
 
 interface CreateRoleResponse {
@@ -84,6 +89,8 @@ const defaultForm = {
   focusAreas: "",
   companyName: "",
   adminNotes: "",
+  rejectThreshold: "40",
+  advanceThreshold: "90",
 };
 
 type NavView = "interviews" | "candidates";
@@ -102,6 +109,7 @@ export function AdminConsole({
   isAuthenticated,
   recentRoles,
   recentSessions,
+  counters,
 }: AdminConsoleProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -126,6 +134,103 @@ export function AdminConsole({
   const [ocrError, setOcrError] = useState("");
   const [ocrWarnings, setOcrWarnings] = useState<string[]>([]);
   const [ocrFields, setOcrFields] = useState<Set<OcrField>>(new Set());
+  const [visibleRoles, setVisibleRoles] = useState(recentRoles);
+  const [visibleSessions, setVisibleSessions] = useState(recentSessions);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<CandidateSessionStatus | "all">("all");
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [lastVisited, setLastVisited] = useState<number>(Date.now());
+  const [badgesReady, setBadgesReady] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem("admin_last_visited");
+    if (stored) {
+      setLastVisited(Number(stored));
+    } else {
+      setLastVisited(0);
+    }
+    setBadgesReady(true);
+    const timeout = setTimeout(() => {
+      localStorage.setItem("admin_last_visited", String(Date.now()));
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const newSessionsCount = badgesReady
+    ? visibleSessions.filter((s) => {
+        const ts = s.sessionEndedAt ?? s.sessionStartedAt ?? s.createdAt;
+        return ts && Date.parse(ts) > lastVisited;
+      }).length
+    : 0;
+
+  const newScoredCount = badgesReady
+    ? visibleSessions.filter((s) => {
+        const isScoredStatus = ["scored", "under_review", "next_round", "rejected"].includes(s.status);
+        if (!isScoredStatus || !s.scorecard) return false;
+        const ts = s.sessionEndedAt ?? s.createdAt;
+        return ts && Date.parse(ts) > lastVisited;
+      }).length
+    : 0;
+
+  const handleDeleteRole = async (roleId: string) => {
+    setVisibleRoles((current) => current.filter((r) => r.id !== roleId));
+    await fetch(`/api/admin/roles/${roleId}`, { method: "DELETE" });
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    setVisibleSessions((current) => current.filter((s) => s.id !== sessionId));
+    await fetch(`/api/admin/sessions/${sessionId}`, { method: "DELETE" });
+  };
+
+  const toggleSessionSelection = (id: string) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllSessions = (sessionIds: string[]) => {
+    setSelectedSessionIds((current) => {
+      const allSelected = sessionIds.every((id) => current.has(id));
+      if (allSelected) return new Set();
+      return new Set(sessionIds);
+    });
+  };
+
+  const handleBulkStatusChange = async (targetStatus: CandidateSessionStatus) => {
+    setBulkProcessing(true);
+    try {
+      await fetch("/api/admin/sessions/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionIds: [...selectedSessionIds],
+          targetStatus,
+        }),
+      });
+      setVisibleSessions((current) =>
+        current.map((s) =>
+          selectedSessionIds.has(s.id) ? { ...s, status: targetStatus } : s,
+        ),
+      );
+      setSelectedSessionIds(new Set());
+    } finally {
+      setBulkProcessing(false);
+    }
+  };
+
+  const filteredSessions = visibleSessions.filter((session) => {
+    const matchesSearch =
+      searchQuery === "" ||
+      session.candidateProfile.candidateName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      session.roleSnapshot.roleTitle.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      session.candidateProfile.githubUrl.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || session.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
 
   const clearFieldError = (field: string) => {
     setErrors((current) => {
@@ -365,6 +470,8 @@ export function AdminConsole({
       payload.set("focusAreas", splitFocusAreas(form.focusAreas).join("\n"));
       payload.set("companyName", form.companyName.trim());
       payload.set("adminNotes", form.adminNotes.trim());
+      payload.set("rejectThreshold", form.rejectThreshold);
+      payload.set("advanceThreshold", form.advanceThreshold);
 
       if (jobDescriptionPdf) {
         payload.set("jobDescriptionPdf", jobDescriptionPdf);
@@ -455,11 +562,17 @@ export function AdminConsole({
 
             <div className="grid gap-3 sm:grid-cols-3">
               <MetricCard label="Active templates" value={String(recentRoles.length)} />
-              <MetricCard label="Candidate sessions" value={String(recentSessions.length)} />
+              <MetricCard
+                label="Active candidates"
+                value={String(recentSessions.filter((s) => !["rejected", "completed", "failed"].includes(s.status)).length)}
+              />
               <MetricCard
                 label="Scored interviews"
-                value={String(recentSessions.filter((session) => session.status === "scored").length)}
+                value={String(recentSessions.filter((session) => ["scored", "rejected", "under_review", "next_round"].includes(session.status)).length)}
               />
+              <MetricCard label="Unique candidates" value={String(counters?.uniqueGithubUrls.length ?? 0)} />
+              <MetricCard label="Interview hours" value={formatInterviewHours(counters?.totalInterviewSeconds ?? 0)} />
+              <MetricCard label="Total interviews" value={String(counters?.interviewsConducted ?? 0)} />
             </div>
           </CardHeader>
         </Card>
@@ -471,13 +584,19 @@ export function AdminConsole({
         >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <TabsList>
-              <TabsTrigger value="interviews" className="min-w-36">
+              <TabsTrigger value="interviews" className="min-w-36 relative">
                 <Sparkle className="size-4" weight="duotone" />
                 Interviews
+                {newSessionsCount > 0 && (
+                  <span className="notification-badge">{newSessionsCount}</span>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="candidates" className="min-w-36">
+              <TabsTrigger value="candidates" className="min-w-36 relative">
                 <Files className="size-4" weight="duotone" />
                 Candidates
+                {newScoredCount > 0 && (
+                  <span className="notification-badge">{newScoredCount}</span>
+                )}
               </TabsTrigger>
             </TabsList>
             <p className="text-sm text-muted-foreground">Create links and review candidates.</p>
@@ -508,7 +627,7 @@ export function AdminConsole({
               </CardHeader>
 
               <CardContent>
-                <InterviewLinksTable roles={recentRoles} />
+                <InterviewLinksTable roles={visibleRoles} onDelete={handleDeleteRole} />
               </CardContent>
             </Card>
           </TabsContent>
@@ -542,12 +661,50 @@ export function AdminConsole({
                 </Tabs>
               </CardHeader>
 
+              <div className="flex flex-wrap items-center gap-3 px-6 pb-4">
+                <Input
+                  type="search"
+                  placeholder="Search candidates..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="max-w-xs"
+                />
+                <select
+                  className="flex h-10 rounded-[calc(var(--radius)+0.15rem)] border border-input bg-input/50 px-3 py-2 text-sm"
+                  value={statusFilter}
+                  onChange={(e) => setStatusFilter(e.target.value as CandidateSessionStatus | "all")}
+                >
+                  <option value="all">All statuses</option>
+                  {KANBAN_COLUMNS.map(({ status, label }) => (
+                    <option key={status} value={status}>{label}</option>
+                  ))}
+                </select>
+              </div>
+
               <CardContent>
                 {candidatesView === "table" ? (
-                  <CandidatesTable sessions={recentSessions} />
+                  <CandidatesTable
+                    sessions={filteredSessions}
+                    onDelete={handleDeleteSession}
+                    selectedIds={selectedSessionIds}
+                    onToggle={toggleSessionSelection}
+                    onToggleAll={toggleAllSessions}
+                  />
                 ) : (
-                  <CandidatesKanban sessions={recentSessions} />
+                  <CandidatesKanban
+                    sessions={filteredSessions}
+                    onDelete={handleDeleteSession}
+                    selectedIds={selectedSessionIds}
+                    onToggle={toggleSessionSelection}
+                  />
                 )}
+                <BulkActionBar
+                  selectedCount={selectedSessionIds.size}
+                  onReject={() => handleBulkStatusChange("rejected")}
+                  onAdvance={() => handleBulkStatusChange("next_round")}
+                  onClearSelection={() => setSelectedSessionIds(new Set())}
+                  processing={bulkProcessing}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -910,7 +1067,7 @@ function RoleForm({
           <Field label="Duration (min)" error={errors.durationMinutes}>
             <Input
               type="number"
-              min={10}
+              min={1}
               max={90}
               value={form.durationMinutes}
               placeholder="25"
@@ -944,6 +1101,40 @@ function RoleForm({
             rows={4}
           />
         </Field>
+
+        <div className="grid gap-5 sm:grid-cols-2">
+          <Field label="Reject below (score)" error={errors.rejectThreshold}>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={form.rejectThreshold}
+              placeholder="40"
+              onChange={(event) => onUpdateFormValue("rejectThreshold", event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Candidates scoring below this are automatically rejected.
+            </p>
+          </Field>
+
+          <Field label="Auto-advance above (score)" error={errors.advanceThreshold}>
+            <Input
+              type="number"
+              min={0}
+              max={100}
+              value={form.advanceThreshold}
+              placeholder="90"
+              onChange={(event) => onUpdateFormValue("advanceThreshold", event.target.value)}
+            />
+            <p className="text-xs text-muted-foreground">
+              Candidates scoring above this advance directly to the next round.
+            </p>
+          </Field>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Candidates scoring between the two thresholds land in &ldquo;Under review&rdquo; for manual decision.
+        </p>
 
         {submitError ? <p className="text-sm text-destructive">{submitError}</p> : null}
 
@@ -993,12 +1184,21 @@ const KANBAN_COLUMNS: { status: CandidateSessionStatus; label: string }[] = [
   { status: "agent_ready", label: "Ready" },
   { status: "in_progress", label: "In progress" },
   { status: "completed", label: "Completed" },
-  { status: "scored", label: "Scored" },
+  { status: "under_review", label: "Under review" },
+  { status: "next_round", label: "Next round" },
+  { status: "rejected", label: "Rejected" },
   { status: "failed", label: "Failed" },
 ];
 
 function formatStatus(status: CandidateSessionStatus) {
   return status.replace(/_/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function formatInterviewHours(totalSeconds: number): string {
+  if (totalSeconds === 0) return "0";
+  const hours = totalSeconds / 3600;
+  if (hours < 1) return `${Math.round(hours * 60)}m`;
+  return `${hours.toFixed(1)}h`;
 }
 
 function formatTimestamp(value: string) {
@@ -1024,22 +1224,47 @@ function StatusBadge({ status }: { status: CandidateSessionStatus }) {
     in_progress: "border-primary/20 bg-primary/10 text-primary",
     completed: "border-border bg-muted/70 text-muted-foreground",
     scored: "border-emerald-200/80 bg-emerald-50 text-emerald-700",
+    under_review: "border-amber-200/80 bg-amber-50 text-amber-700",
+    next_round: "border-emerald-200/80 bg-emerald-50 text-emerald-700",
+    rejected: "border-destructive/20 bg-destructive/8 text-destructive",
     failed: "border-destructive/20 bg-destructive/8 text-destructive",
   };
 
   return <Badge className={styles[status]}>{formatStatus(status)}</Badge>;
 }
 
-function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
+function CandidatesTable({
+  sessions,
+  onDelete,
+  selectedIds,
+  onToggle,
+  onToggleAll,
+}: {
+  sessions: CandidateSessionRecord[];
+  onDelete: (id: string) => void;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: (ids: string[]) => void;
+}) {
   if (sessions.length === 0) {
     return <p className="text-sm text-muted-foreground">No candidates yet.</p>;
   }
+
+  const allIds = sessions.map((s) => s.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
 
   return (
     <div className="overflow-auto rounded-[calc(var(--radius)+0.2rem)] border border-border/70 bg-background/70">
       <Table>
         <TableHeader>
           <TableRow className="border-border/80">
+            <TableHead className="w-10">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={() => onToggleAll(allIds)}
+                aria-label="Select all"
+              />
+            </TableHead>
             <TableHead className="font-semibold text-foreground">Candidate</TableHead>
             <TableHead className="font-semibold text-foreground">Interview</TableHead>
             <TableHead className="font-semibold text-foreground">Status</TableHead>
@@ -1051,7 +1276,21 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
         </TableHeader>
         <TableBody>
           {sessions.map((session) => (
-            <TableRow key={session.id} className="border-border/70">
+            <TableRow
+              key={session.id}
+              className={cn(
+                "border-border/70",
+                session.status === "next_round" && "bg-emerald-50/50 border-l-2 border-l-emerald-400",
+                selectedIds.has(session.id) && "bg-primary/5",
+              )}
+            >
+              <TableCell>
+                <Checkbox
+                  checked={selectedIds.has(session.id)}
+                  onCheckedChange={() => onToggle(session.id)}
+                  aria-label={`Select ${session.candidateProfile.candidateName}`}
+                />
+              </TableCell>
               <TableCell>
                 <div>
                   <p className="font-medium text-foreground">
@@ -1089,17 +1328,33 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
               </TableCell>
               <TableCell>
                 {typeof session.scorecard?.overallScore === "number" ? (
-                  <span className="font-mono text-sm text-foreground">
-                    {session.scorecard.overallScore.toFixed(1)}
-                  </span>
+                  <div>
+                    <span className="font-mono text-sm text-foreground">
+                      {session.scorecard.overallScore.toFixed(1)}
+                    </span>
+                    <p className="text-xs text-muted-foreground">
+                      {session.scorecard.overallRecommendation.replace(/_/g, " ")}
+                    </p>
+                  </div>
                 ) : (
                   <span className="text-sm text-muted-foreground">-</span>
                 )}
               </TableCell>
               <TableCell className="text-right">
-                <Button asChild size="sm" variant="outline">
-                  <Link href={`/admin/sessions/${session.id}`}>Review</Link>
-                </Button>
+                <div className="flex justify-end gap-2">
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/admin/sessions/${session.id}`}>Review</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(session.id)}
+                  >
+                    <Trash className="size-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -1109,7 +1364,17 @@ function CandidatesTable({ sessions }: { sessions: CandidateSessionRecord[] }) {
   );
 }
 
-function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) {
+function CandidatesKanban({
+  sessions,
+  onDelete,
+  selectedIds,
+  onToggle,
+}: {
+  sessions: CandidateSessionRecord[];
+  onDelete: (id: string) => void;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+}) {
   const byStatus = KANBAN_COLUMNS.reduce(
     (acc, { status }) => {
       acc[status] = sessions.filter((session) => session.status === status);
@@ -1136,8 +1401,19 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
             {(byStatus[status] ?? []).map((session) => (
               <div
                 key={session.id}
-                className="rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-card/90 p-4 shadow-[0_18px_40px_rgba(99,102,241,0.08)]"
+                className={cn(
+                  "relative rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-card/90 p-4 shadow-[0_18px_40px_rgba(99,102,241,0.08)]",
+                  session.status === "next_round" && "border-emerald-300 bg-emerald-50/40",
+                  selectedIds.has(session.id) && "ring-2 ring-primary/30",
+                )}
               >
+                <div className="absolute top-3 right-3">
+                  <Checkbox
+                    checked={selectedIds.has(session.id)}
+                    onCheckedChange={() => onToggle(session.id)}
+                    aria-label={`Select ${session.candidateProfile.candidateName}`}
+                  />
+                </div>
                 <div className="space-y-1">
                   <p className="font-medium text-foreground">
                     {session.candidateProfile.candidateName}
@@ -1167,9 +1443,20 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
                   </p>
                 </div>
 
-                <Button asChild size="sm" variant="outline" className="mt-4 w-full">
-                  <Link href={`/admin/sessions/${session.id}`}>Review transcript</Link>
-                </Button>
+                <div className="mt-4 flex gap-2">
+                  <Button asChild size="sm" variant="outline" className="flex-1">
+                    <Link href={`/admin/sessions/${session.id}`}>Review</Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(session.id)}
+                  >
+                    <Trash className="size-4" />
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -1179,7 +1466,7 @@ function CandidatesKanban({ sessions }: { sessions: CandidateSessionRecord[] }) 
   );
 }
 
-function InterviewLinksTable({ roles }: { roles: RoleTemplateRecord[] }) {
+function InterviewLinksTable({ roles, onDelete }: { roles: RoleTemplateRecord[]; onDelete: (id: string) => void }) {
   if (roles.length === 0) {
     return <p className="text-sm text-muted-foreground">No interview links created yet.</p>;
   }
@@ -1228,10 +1515,24 @@ function InterviewLinksTable({ roles }: { roles: RoleTemplateRecord[] }) {
                   >
                     Copy
                   </Button>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/admin/interviews/${role.id}`}>
+                      View
+                    </Link>
+                  </Button>
                   <Button asChild size="sm">
                     <Link href={role.candidateApplyUrl} target="_blank" rel="noopener noreferrer">
                       Open
                     </Link>
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="text-destructive hover:bg-destructive/10"
+                    onClick={() => onDelete(role.id)}
+                  >
+                    <Trash className="size-4" />
                   </Button>
                 </div>
               </TableCell>

@@ -150,6 +150,19 @@ export function CandidateApply({ roleId }: CandidateApplyProps) {
                 {fieldErrors.githubUrl ? <small>{fieldErrors.githubUrl}</small> : null}
               </label>
 
+              <label className="field">
+                <span>Personal website (optional)</span>
+                <input
+                  name="personalWebsiteUrl"
+                  type="url"
+                  placeholder="https://your-website.com"
+                />
+                <p className="fine-print">
+                  Share your portfolio or personal site to tailor the screening.
+                </p>
+                {fieldErrors.personalWebsiteUrl ? <small>{fieldErrors.personalWebsiteUrl}</small> : null}
+              </label>
+
               <div className="field-grid">
                 <label className="field">
                   <span>CV PDF</span>
