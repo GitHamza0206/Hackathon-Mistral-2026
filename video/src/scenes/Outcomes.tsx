@@ -6,26 +6,26 @@ import {
   interpolate,
 } from "remotion";
 import { COLORS, CLAMP, SPRING_CONFIG } from "../constants";
-import { Zap, Users, Scale } from "lucide-react";
+import { Zap, ShieldCheck, Scale } from "lucide-react";
 
 const OUTCOMES = [
-  {
-    icon: Zap,
-    headline: "Blazing fast",
-    phrase: "From application to scorecard in hours, not weeks.",
-    color: COLORS.indigo,
-  },
-  {
-    icon: Users,
-    headline: "Every voice heard",
-    phrase: "Every applicant gets a real interview — not a keyword filter.",
-    color: COLORS.violet,
-  },
   {
     icon: Scale,
     headline: "Pure signal",
     phrase: "Same rigorous process. Competence replaces credentials.",
     color: COLORS.green,
+  },
+  {
+    icon: ShieldCheck,
+    headline: "No false negative",
+    phrase: "Every brilliant AI engineer gets a real interview.",
+    color: COLORS.violet,
+  },
+  {
+    icon: Zap,
+    headline: "Blazing fast",
+    phrase: "From application to scorecard in hours, not weeks.",
+    color: COLORS.indigo,
   },
 ];
 
@@ -33,11 +33,11 @@ export const Outcomes: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const headlineOpacity = interpolate(frame, [5, 25], [0, 1], CLAMP);
-  const headlineY = interpolate(frame, [5, 25], [15, 0], CLAMP);
+  const headlineOpacity = interpolate(frame, [5, 20], [0, 1], CLAMP);
+  const headlineY = interpolate(frame, [5, 20], [12, 0], CLAMP);
 
-  const closingOpacity = interpolate(frame, [280, 310], [0, 1], CLAMP);
-  const closingY = interpolate(frame, [280, 310], [15, 0], CLAMP);
+  const closingOpacity = interpolate(frame, [130, 155], [0, 1], CLAMP);
+  const closingY = interpolate(frame, [130, 155], [12, 0], CLAMP);
 
   return (
     <AbsoluteFill
@@ -47,7 +47,7 @@ export const Outcomes: React.FC = () => {
         flexDirection: "column",
         alignItems: "center",
         justifyContent: "center",
-        gap: 50,
+        gap: 44,
         padding: 80,
       }}
     >
@@ -65,9 +65,9 @@ export const Outcomes: React.FC = () => {
         The outcome
       </p>
 
-      <div style={{ display: "flex", gap: 40 }}>
+      <div style={{ display: "flex", gap: 36 }}>
         {OUTCOMES.map((outcome, i) => {
-          const delay = 20 + i * 35;
+          const delay = 15 + i * 25;
           const entrance = spring({
             frame: frame - delay,
             fps,
@@ -85,31 +85,31 @@ export const Outcomes: React.FC = () => {
                 background: COLORS.bgCard,
                 border: `1px solid ${COLORS.border}`,
                 borderRadius: 20,
-                padding: "48px 36px",
+                padding: "44px 32px",
                 display: "flex",
                 flexDirection: "column",
                 alignItems: "center",
-                gap: 20,
+                gap: 18,
                 textAlign: "center",
               }}
             >
               <div
                 style={{
-                  width: 72,
-                  height: 72,
-                  borderRadius: 18,
+                  width: 68,
+                  height: 68,
+                  borderRadius: 17,
                   background: `${outcome.color}20`,
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
               >
-                <Icon size={36} color={outcome.color} />
+                <Icon size={34} color={outcome.color} />
               </div>
 
               <p
                 style={{
-                  fontSize: 32,
+                  fontSize: 30,
                   fontWeight: 800,
                   color: outcome.color,
                   lineHeight: 1.2,
@@ -118,7 +118,7 @@ export const Outcomes: React.FC = () => {
                 {outcome.headline}
               </p>
 
-              <p style={{ fontSize: 18, color: COLORS.muted, lineHeight: 1.5 }}>
+              <p style={{ fontSize: 17, color: COLORS.muted, lineHeight: 1.5 }}>
                 {outcome.phrase}
               </p>
             </div>
@@ -129,7 +129,7 @@ export const Outcomes: React.FC = () => {
       {/* Closing line */}
       <p
         style={{
-          fontSize: 28,
+          fontSize: 26,
           fontWeight: 500,
           fontStyle: "italic",
           color: COLORS.text,

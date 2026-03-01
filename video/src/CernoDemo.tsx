@@ -19,9 +19,6 @@ import {
   SCENE_13_START, SCENE_13_END,
   SCENE_14_START, SCENE_14_END,
   SCENE_15_START, SCENE_15_END,
-  SCENE_16_START, SCENE_16_END,
-  SCENE_17_START, SCENE_17_END,
-  SCENE_18_START, SCENE_18_END,
 } from "./constants";
 
 // Act 1: The Problem
@@ -33,22 +30,17 @@ import { BrokenRecruitment } from "./scenes/BrokenRecruitment";
 import { KeyPhrase } from "./scenes/KeyPhrase";
 import { CernoReveal } from "./scenes/CernoReveal";
 
-// Act 2: Product — Admin View
+// Act 2: Product — Setup + Live Interview
 import { AdminSetup } from "./scenes/AdminSetup";
-import { AdminDashboard } from "./scenes/AdminDashboard";
-import { AdminScorecard } from "./scenes/AdminScorecard";
-
-// Act 3: Product — Candidate View
 import { CandidateApply } from "./scenes/CandidateApply";
-import { CandidateChecklist } from "./scenes/CandidateChecklist";
 import { LiveInterview } from "./scenes/LiveInterview";
 
-// Act 4: Analytics & Power
+// Act 3: Review + Specialization
 import { ComparisonView } from "./scenes/ComparisonView";
-import { Analytics } from "./scenes/Analytics";
+import { AdminDashboard } from "./scenes/AdminDashboard";
 import { Domains } from "./scenes/Domains";
 
-// Act 5: Impact & Close
+// Act 4: Impact & Close
 import { Outcomes } from "./scenes/Outcomes";
 import { CTA } from "./scenes/CTA";
 
@@ -94,51 +86,38 @@ export const CernoDemo: React.FC = () => {
         <CernoReveal />
       </Sequence>
 
-      {/* Act 2: Product — Admin View */}
+      {/* Act 2: Product */}
       <Sequence from={SCENE_8_START} durationInFrames={SCENE_8_END - SCENE_8_START} premountFor={FPS}>
         <AdminSetup />
       </Sequence>
 
       <Sequence from={SCENE_9_START} durationInFrames={SCENE_9_END - SCENE_9_START} premountFor={FPS}>
-        <AdminDashboard />
-      </Sequence>
-
-      <Sequence from={SCENE_10_START} durationInFrames={SCENE_10_END - SCENE_10_START} premountFor={FPS}>
-        <AdminScorecard />
-      </Sequence>
-
-      {/* Act 3: Product — Candidate View */}
-      <Sequence from={SCENE_11_START} durationInFrames={SCENE_11_END - SCENE_11_START} premountFor={FPS}>
         <CandidateApply />
       </Sequence>
 
-      <Sequence from={SCENE_12_START} durationInFrames={SCENE_12_END - SCENE_12_START} premountFor={FPS}>
-        <CandidateChecklist />
-      </Sequence>
-
-      <Sequence from={SCENE_13_START} durationInFrames={SCENE_13_END - SCENE_13_START} premountFor={FPS}>
+      <Sequence from={SCENE_10_START} durationInFrames={SCENE_10_END - SCENE_10_START} premountFor={FPS}>
         <LiveInterview />
       </Sequence>
 
-      {/* Act 4: Analytics & Power */}
-      <Sequence from={SCENE_14_START} durationInFrames={SCENE_14_END - SCENE_14_START} premountFor={FPS}>
+      {/* Act 3: Review + Specialization */}
+      <Sequence from={SCENE_11_START} durationInFrames={SCENE_11_END - SCENE_11_START} premountFor={FPS}>
         <ComparisonView />
       </Sequence>
 
-      <Sequence from={SCENE_15_START} durationInFrames={SCENE_15_END - SCENE_15_START} premountFor={FPS}>
-        <Analytics />
+      <Sequence from={SCENE_12_START} durationInFrames={SCENE_12_END - SCENE_12_START} premountFor={FPS}>
+        <AdminDashboard />
       </Sequence>
 
-      <Sequence from={SCENE_16_START} durationInFrames={SCENE_16_END - SCENE_16_START} premountFor={FPS}>
+      <Sequence from={SCENE_13_START} durationInFrames={SCENE_13_END - SCENE_13_START} premountFor={FPS}>
         <Domains />
       </Sequence>
 
-      {/* Act 5: Impact & Close */}
-      <Sequence from={SCENE_17_START} durationInFrames={SCENE_17_END - SCENE_17_START} premountFor={FPS}>
+      {/* Act 4: Impact & Close */}
+      <Sequence from={SCENE_14_START} durationInFrames={SCENE_14_END - SCENE_14_START} premountFor={FPS}>
         <Outcomes />
       </Sequence>
 
-      <Sequence from={SCENE_18_START} durationInFrames={SCENE_18_END - SCENE_18_START} premountFor={FPS}>
+      <Sequence from={SCENE_15_START} durationInFrames={SCENE_15_END - SCENE_15_START} premountFor={FPS}>
         <CTA />
       </Sequence>
     </AbsoluteFill>

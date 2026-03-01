@@ -14,8 +14,6 @@ export const CTA: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  // Duration: 480 frames (16s)
-
   // "Stop screening." types in then gets strikethrough
   const strikethroughWidth = interpolate(frame, [80, 100], [0, 100], CLAMP);
 
@@ -26,16 +24,18 @@ export const CTA: React.FC = () => {
     config: SPRING_CONFIG,
   });
 
-  const logoOpacity = interpolate(frame, [200, 250], [0, 1], CLAMP);
-  const logoScale = interpolate(frame, [200, 250], [0.88, 1], CLAMP);
+  // One-liner — highlighted, not muted
+  const oneLineOpacity = interpolate(frame, [160, 190], [0, 1], CLAMP);
+  const oneLineY = interpolate(frame, [160, 190], [15, 0], CLAMP);
 
-  const oneLineOpacity = interpolate(frame, [180, 210], [0, 1], CLAMP);
-  const oneLineY = interpolate(frame, [180, 210], [12, 0], CLAMP);
+  // Logo — BIGGER
+  const logoOpacity = interpolate(frame, [230, 280], [0, 1], CLAMP);
+  const logoScale = interpolate(frame, [230, 280], [0.85, 1], CLAMP);
 
-  const urlOpacity = interpolate(frame, [310, 340], [0, 1], CLAMP);
+  const urlOpacity = interpolate(frame, [300, 330], [0, 1], CLAMP);
 
   // Fade to indigo at the very end
-  const endOverlay = interpolate(frame, [430, 480], [0, 1], CLAMP);
+  const endOverlay = interpolate(frame, [380, 420], [0, 1], CLAMP);
 
   return (
     <AbsoluteFill
@@ -93,51 +93,61 @@ export const CTA: React.FC = () => {
           Start interviewing.
         </div>
 
-        {/* One-liner */}
+        {/* One-liner — HIGHLIGHTED */}
         <div
           style={{
             opacity: oneLineOpacity,
             transform: `translateY(${oneLineY}px)`,
-            marginTop: 50,
-            maxWidth: 800,
+            marginTop: 44,
+            maxWidth: 850,
             textAlign: "center",
           }}
         >
           <p
             style={{
-              fontSize: 24,
-              fontWeight: 500,
-              fontStyle: "italic",
-              color: COLORS.muted,
+              fontSize: 28,
+              fontWeight: 600,
+              color: COLORS.text,
               lineHeight: 1.6,
             }}
           >
-            Every great engineer deserves a fair shot.
-            <br />
-            Every recruiter deserves their time back.
+            Every great engineer deserves a{" "}
+            <span style={{ color: COLORS.indigo }}>fair shot</span>.
+          </p>
+          <p
+            style={{
+              fontSize: 28,
+              fontWeight: 600,
+              color: COLORS.text,
+              lineHeight: 1.6,
+              marginTop: 4,
+            }}
+          >
+            Every recruiter deserves their{" "}
+            <span style={{ color: COLORS.lavender }}>time back</span>.
           </p>
         </div>
 
-        {/* Logo */}
+        {/* Logo — BIGGER */}
         <div
           style={{
             opacity: logoOpacity,
             transform: `scale(${logoScale})`,
-            marginTop: 40,
+            marginTop: 50,
           }}
         >
-          <CernoLogo scale={0.8} />
+          <CernoLogo scale={1.3} />
         </div>
 
         {/* URL */}
         <div
           style={{
             opacity: urlOpacity,
-            marginTop: 20,
-            fontSize: 24,
-            fontWeight: 500,
+            marginTop: 24,
+            fontSize: 26,
+            fontWeight: 600,
             color: COLORS.indigo,
-            letterSpacing: "0.03em",
+            letterSpacing: "0.04em",
           }}
         >
           cerno.ai

@@ -38,64 +38,54 @@ export const CLAMP = {
 export const FPS = 30;
 export const TOTAL_FRAMES = 3600; // 120 seconds
 
-// ── Act 1: The Problem (0–44s) ──────────────────────────
+// ── Act 1: The Problem (0–43s) ──────────────────────────
 export const SCENE_1_START = 0;
-export const SCENE_1_END = 210;     // 0–7s     ApplicationMontage
+export const SCENE_1_END = 270;     // 0–9s     ApplicationMontage
 
-export const SCENE_2_START = 210;
-export const SCENE_2_END = 390;     // 7–13s    HRRejection
+export const SCENE_2_START = 270;
+export const SCENE_2_END = 480;     // 9–16s    HRRejection
 
-export const SCENE_3_START = 390;
-export const SCENE_3_END = 540;     // 13–18s   RejectionEmail
+export const SCENE_3_START = 480;
+export const SCENE_3_END = 660;     // 16–22s   RejectionEmail
 
-export const SCENE_4_START = 540;
-export const SCENE_4_END = 780;     // 18–26s   PainPoints
+export const SCENE_4_START = 660;
+export const SCENE_4_END = 810;     // 22–27s   PainPoints (shorter)
 
-export const SCENE_5_START = 780;
-export const SCENE_5_END = 930;     // 26–31s   BrokenRecruitment
+export const SCENE_5_START = 810;
+export const SCENE_5_END = 1050;    // 27–35s   BrokenRecruitment
 
-export const SCENE_6_START = 930;
-export const SCENE_6_END = 1110;    // 31–37s   KeyPhrase
+export const SCENE_6_START = 1050;
+export const SCENE_6_END = 1260;    // 35–42s   KeyPhrase
 
-export const SCENE_7_START = 1110;
-export const SCENE_7_END = 1320;    // 37–44s   CernoReveal
+export const SCENE_7_START = 1260;
+export const SCENE_7_END = 1530;    // 42–51s   CernoReveal
 
-// ── Act 2: Product — Admin View (44–58s) ────────────────
-export const SCENE_8_START = 1320;
-export const SCENE_8_END = 1530;    // 44–51s   AdminSetup
+// ── Act 2: Product — Setup + Live Interview (51–80s) ────
+export const SCENE_8_START = 1530;
+export const SCENE_8_END = 1800;    // 51–60s   AdminSetup
 
-export const SCENE_9_START = 1530;
-export const SCENE_9_END = 1740;    // 51–58s   AdminDashboard
+export const SCENE_9_START = 1800;
+export const SCENE_9_END = 2010;    // 60–67s   CandidateApply
 
-export const SCENE_10_START = 1740;
-export const SCENE_10_END = 1890;   // 58–63s   AdminScorecard
+export const SCENE_10_START = 2010;
+export const SCENE_10_END = 2400;   // 67–80s   LiveInterview (HERO)
 
-// ── Act 3: Product — Candidate View (63–85s) ────────────
-export const SCENE_11_START = 1890;
-export const SCENE_11_END = 2070;   // 63–69s   CandidateApply
+// ── Act 3: Review + Specialization (80–100s) ────────────
+export const SCENE_11_START = 2400;
+export const SCENE_11_END = 2550;   // 80–85s   ComparisonView
 
-export const SCENE_12_START = 2070;
-export const SCENE_12_END = 2250;   // 69–75s   CandidateChecklist
+export const SCENE_12_START = 2550;
+export const SCENE_12_END = 2700;   // 85–90s   AdminDashboard
 
-export const SCENE_13_START = 2250;
-export const SCENE_13_END = 2550;   // 75–85s   LiveInterview (HERO)
+export const SCENE_13_START = 2700;
+export const SCENE_13_END = 3000;   // 90–100s  Domains (longer)
 
-// ── Act 4: Analytics & Power (85–103s) ──────────────────
-export const SCENE_14_START = 2550;
-export const SCENE_14_END = 2730;   // 85–91s   ComparisonView
+// ── Act 4: Impact & Close (100–120s) ────────────────────
+export const SCENE_14_START = 3000;
+export const SCENE_14_END = 3180;   // 100–106s Outcomes (shorter)
 
-export const SCENE_15_START = 2730;
-export const SCENE_15_END = 2910;   // 91–97s   Analytics
-
-export const SCENE_16_START = 2910;
-export const SCENE_16_END = 3090;   // 97–103s  Domains
-
-// ── Act 5: Impact & Close (103–120s) ────────────────────
-export const SCENE_17_START = 3090;
-export const SCENE_17_END = 3330;   // 103–111s Outcomes
-
-export const SCENE_18_START = 3330;
-export const SCENE_18_END = 3600;   // 111–120s CTA
+export const SCENE_15_START = 3180;
+export const SCENE_15_END = 3600;   // 106–120s CTA (finale)
 
 // ─── Typography ───────────────────────────────────────────
 export const FONT_WEIGHTS = {

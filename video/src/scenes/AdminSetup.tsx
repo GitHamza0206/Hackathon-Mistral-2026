@@ -50,7 +50,7 @@ export const AdminSetup: React.FC = () => {
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
               <FileText size={16} color={COLORS.appAccent} />
               <span style={{ fontSize: 12, fontWeight: 700, color: COLORS.appMuted, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-                Uploaded JD
+                Uploaded Job Description
               </span>
             </div>
 
@@ -202,7 +202,7 @@ export const AdminSetup: React.FC = () => {
           transform: `translateY(${captionY}px)`,
         }}
       >
-        Upload a JD. <span style={{ color: COLORS.indigo }}>Cerno does the rest.</span>
+        Upload a Job Description. <span style={{ color: COLORS.indigo }}>Cerno does the rest.</span>
       </p>
     </AbsoluteFill>
   );

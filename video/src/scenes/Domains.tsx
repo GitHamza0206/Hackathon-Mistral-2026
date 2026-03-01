@@ -40,7 +40,7 @@ export const Domains: React.FC = () => {
   const { fps } = useVideoConfig();
 
   const headlineOpacity = interpolate(frame, [5, 25], [0, 1], CLAMP);
-  const exitOpacity = interpolate(frame, [150, 175], [1, 0], CLAMP);
+  const exitOpacity = interpolate(frame, [265, 295], [1, 0], CLAMP);
 
   return (
     <AbsoluteFill

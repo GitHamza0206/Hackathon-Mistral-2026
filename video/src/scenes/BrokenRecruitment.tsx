@@ -12,7 +12,7 @@ export const BrokenRecruitment: React.FC = () => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
-  const exitOpacity = interpolate(frame, [125, 150], [1, 0], CLAMP);
+  const exitOpacity = interpolate(frame, [150, 175], [1, 0], CLAMP);
 
   // Crack/fracture line in the middle
   const crackProgress = interpolate(frame, [65, 85], [0, 1], CLAMP);
