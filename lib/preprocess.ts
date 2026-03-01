@@ -1,5 +1,6 @@
 import { Mistral } from "@mistralai/mistralai";
-import { getMistralModel, getRequiredEnv } from "@/lib/env";
+import { getMistralModel, getRequiredEnv, usesBedrock } from "@/lib/env";
+import { bedrockChat } from "@/lib/bedrock";
 import type {
   CandidateSessionRecord,
   GitHubRepo,
@@ -18,26 +19,35 @@ export async function generateInterviewStrategy(
   session: CandidateSessionRecord,
   repos: GitHubRepo[],
 ): Promise<InterviewStrategy> {
-  const response = await getClient().chat.complete({
-    model: getMistralModel(),
-    responseFormat: { type: "json_object" },
-    temperature: 0.3,
-    messages: [
-      {
-        role: "system",
-        content:
-          "You are an expert technical recruiter preparing an interviewer brief. Return valid JSON only.",
-      },
-      {
-        role: "user",
-        content: buildPreprocessingPrompt(session, repos),
-      },
-    ],
-  });
+  const systemContent =
+    "You are an expert technical recruiter preparing an interviewer brief. Return valid JSON only.";
+  const userContent = buildPreprocessingPrompt(session, repos);
 
-  const raw = response.choices?.[0]?.message?.content;
-  const parsed = JSON.parse(extractText(raw));
+  let raw: string;
 
+  if (usesBedrock()) {
+    raw = await bedrockChat({
+      messages: [
+        { role: "system", content: systemContent },
+        { role: "user", content: userContent },
+      ],
+      temperature: 0.3,
+      jsonResponse: true,
+    });
+  } else {
+    const response = await getClient().chat.complete({
+      model: getMistralModel(),
+      responseFormat: { type: "json_object" },
+      temperature: 0.3,
+      messages: [
+        { role: "system", content: systemContent },
+        { role: "user", content: userContent },
+      ],
+    });
+    raw = extractText(response.choices?.[0]?.message?.content);
+  }
+
+  const parsed = JSON.parse(raw);
   return normalizeStrategy(parsed);
 }
 

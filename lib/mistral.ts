@@ -1,5 +1,6 @@
 import { Mistral } from "@mistralai/mistralai";
-import { getMistralModel, getRequiredEnv } from "@/lib/env";
+import { getMistralModel, getRequiredEnv, usesBedrock } from "@/lib/env";
+import { bedrockChat } from "@/lib/bedrock";
 import type { Scorecard, TargetSeniority, TranscriptEntry } from "@/lib/interviews";
 import { buildMistralScoringPrompt } from "@/lib/prompt";
 
@@ -18,25 +19,34 @@ function getClient() {
 }
 
 export async function scoreCandidateSession(transcript: TranscriptEntry[]) {
-  const response = await getClient().chat.complete({
-    model: getMistralModel(),
-    responseFormat: { type: "json_object" },
-    temperature: 0.2,
-    messages: [
-      {
-        role: "system",
-        content: "You are a rigorous AI engineering interviewer. Return valid JSON only.",
-      },
-      {
-        role: "user",
-        content: buildMistralScoringPrompt(transcript),
-      },
-    ],
-  });
+  const systemContent = "You are a rigorous AI engineering interviewer. Return valid JSON only.";
+  const userContent = buildMistralScoringPrompt(transcript);
 
-  const raw = response.choices[0]?.message?.content;
-  const parsed = JSON.parse(extractText(raw));
+  let raw: string;
 
+  if (usesBedrock()) {
+    raw = await bedrockChat({
+      messages: [
+        { role: "system", content: systemContent },
+        { role: "user", content: userContent },
+      ],
+      temperature: 0.2,
+      jsonResponse: true,
+    });
+  } else {
+    const response = await getClient().chat.complete({
+      model: getMistralModel(),
+      responseFormat: { type: "json_object" },
+      temperature: 0.2,
+      messages: [
+        { role: "system", content: systemContent },
+        { role: "user", content: userContent },
+      ],
+    });
+    raw = extractText(response.choices[0]?.message?.content);
+  }
+
+  const parsed = JSON.parse(raw);
   return normalizeScorecard(parsed);
 }
 
