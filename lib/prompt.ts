@@ -25,6 +25,7 @@ export function buildSessionBootstrap(
     candidateName: session.candidateProfile.candidateName,
     roleTitle: session.roleSnapshot.roleTitle,
     durationMinutes: session.roleSnapshot.durationMinutes,
+    focusAreas: session.roleSnapshot.focusAreas,
     agentId: session.agentId ?? "",
     status: session.status,
     intro: buildSessionIntro(session),

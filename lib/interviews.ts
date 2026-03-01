@@ -193,6 +193,7 @@ export interface SessionBootstrap {
   candidateName: string;
   roleTitle: string;
   durationMinutes: number;
+  focusAreas: string[];
   agentId: string;
   status: CandidateSessionStatus;
   intro: string;

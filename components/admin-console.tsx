@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -42,6 +42,8 @@ import {
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+import { BulkActionBar } from "@/components/bulk-action-bar";
 import { cn } from "@/lib/utils";
 import {
   splitFocusAreas,
@@ -136,6 +138,32 @@ export function AdminConsole({
   const [visibleSessions, setVisibleSessions] = useState(recentSessions);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<CandidateSessionStatus | "all">("all");
+  const [selectedSessionIds, setSelectedSessionIds] = useState<Set<string>>(new Set());
+  const [bulkProcessing, setBulkProcessing] = useState(false);
+  const [lastVisited] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const stored = localStorage.getItem("admin_last_visited");
+    return stored ? Number(stored) : 0;
+  });
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      localStorage.setItem("admin_last_visited", String(Date.now()));
+    }, 2000);
+    return () => clearTimeout(timeout);
+  }, []);
+
+  const newSessionsCount = visibleSessions.filter((s) => {
+    const ts = s.sessionEndedAt ?? s.sessionStartedAt ?? s.createdAt;
+    return ts && Date.parse(ts) > lastVisited;
+  }).length;
+
+  const newScoredCount = visibleSessions.filter((s) => {
+    const isScoredStatus = ["scored", "under_review", "next_round", "rejected"].includes(s.status);
+    if (!isScoredStatus || !s.scorecard) return false;
+    const ts = s.sessionEndedAt ?? s.createdAt;
+    return ts && Date.parse(ts) > lastVisited;
+  }).length;
 
   const handleDeleteRole = async (roleId: string) => {
     setVisibleRoles((current) => current.filter((r) => r.id !== roleId));
@@ -145,6 +173,45 @@ export function AdminConsole({
   const handleDeleteSession = async (sessionId: string) => {
     setVisibleSessions((current) => current.filter((s) => s.id !== sessionId));
     await fetch(`/api/admin/sessions/${sessionId}`, { method: "DELETE" });
+  };
+
+  const toggleSessionSelection = (id: string) => {
+    setSelectedSessionIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAllSessions = (sessionIds: string[]) => {
+    setSelectedSessionIds((current) => {
+      const allSelected = sessionIds.every((id) => current.has(id));
+      if (allSelected) return new Set();
+      return new Set(sessionIds);
+    });
+  };
+
+  const handleBulkStatusChange = async (targetStatus: CandidateSessionStatus) => {
+    setBulkProcessing(true);
+    try {
+      await fetch("/api/admin/sessions/bulk-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionIds: [...selectedSessionIds],
+          targetStatus,
+        }),
+      });
+      setVisibleSessions((current) =>
+        current.map((s) =>
+          selectedSessionIds.has(s.id) ? { ...s, status: targetStatus } : s,
+        ),
+      );
+      setSelectedSessionIds(new Set());
+    } finally {
+      setBulkProcessing(false);
+    }
   };
 
   const filteredSessions = visibleSessions.filter((session) => {
@@ -509,13 +576,19 @@ export function AdminConsole({
         >
           <div className="flex flex-wrap items-center justify-between gap-4">
             <TabsList>
-              <TabsTrigger value="interviews" className="min-w-36">
+              <TabsTrigger value="interviews" className="min-w-36 relative">
                 <Sparkle className="size-4" weight="duotone" />
                 Interviews
+                {newSessionsCount > 0 && (
+                  <span className="notification-badge">{newSessionsCount}</span>
+                )}
               </TabsTrigger>
-              <TabsTrigger value="candidates" className="min-w-36">
+              <TabsTrigger value="candidates" className="min-w-36 relative">
                 <Files className="size-4" weight="duotone" />
                 Candidates
+                {newScoredCount > 0 && (
+                  <span className="notification-badge">{newScoredCount}</span>
+                )}
               </TabsTrigger>
             </TabsList>
             <p className="text-sm text-muted-foreground">Create links and review candidates.</p>
@@ -602,10 +675,28 @@ export function AdminConsole({
 
               <CardContent>
                 {candidatesView === "table" ? (
-                  <CandidatesTable sessions={filteredSessions} onDelete={handleDeleteSession} />
+                  <CandidatesTable
+                    sessions={filteredSessions}
+                    onDelete={handleDeleteSession}
+                    selectedIds={selectedSessionIds}
+                    onToggle={toggleSessionSelection}
+                    onToggleAll={toggleAllSessions}
+                  />
                 ) : (
-                  <CandidatesKanban sessions={filteredSessions} onDelete={handleDeleteSession} />
+                  <CandidatesKanban
+                    sessions={filteredSessions}
+                    onDelete={handleDeleteSession}
+                    selectedIds={selectedSessionIds}
+                    onToggle={toggleSessionSelection}
+                  />
                 )}
+                <BulkActionBar
+                  selectedCount={selectedSessionIds.size}
+                  onReject={() => handleBulkStatusChange("rejected")}
+                  onAdvance={() => handleBulkStatusChange("next_round")}
+                  onClearSelection={() => setSelectedSessionIds(new Set())}
+                  processing={bulkProcessing}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -1134,16 +1225,38 @@ function StatusBadge({ status }: { status: CandidateSessionStatus }) {
   return <Badge className={styles[status]}>{formatStatus(status)}</Badge>;
 }
 
-function CandidatesTable({ sessions, onDelete }: { sessions: CandidateSessionRecord[]; onDelete: (id: string) => void }) {
+function CandidatesTable({
+  sessions,
+  onDelete,
+  selectedIds,
+  onToggle,
+  onToggleAll,
+}: {
+  sessions: CandidateSessionRecord[];
+  onDelete: (id: string) => void;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: (ids: string[]) => void;
+}) {
   if (sessions.length === 0) {
     return <p className="text-sm text-muted-foreground">No candidates yet.</p>;
   }
+
+  const allIds = sessions.map((s) => s.id);
+  const allSelected = allIds.length > 0 && allIds.every((id) => selectedIds.has(id));
 
   return (
     <div className="overflow-auto rounded-[calc(var(--radius)+0.2rem)] border border-border/70 bg-background/70">
       <Table>
         <TableHeader>
           <TableRow className="border-border/80">
+            <TableHead className="w-10">
+              <Checkbox
+                checked={allSelected}
+                onCheckedChange={() => onToggleAll(allIds)}
+                aria-label="Select all"
+              />
+            </TableHead>
             <TableHead className="font-semibold text-foreground">Candidate</TableHead>
             <TableHead className="font-semibold text-foreground">Interview</TableHead>
             <TableHead className="font-semibold text-foreground">Status</TableHead>
@@ -1160,8 +1273,16 @@ function CandidatesTable({ sessions, onDelete }: { sessions: CandidateSessionRec
               className={cn(
                 "border-border/70",
                 session.status === "next_round" && "bg-emerald-50/50 border-l-2 border-l-emerald-400",
+                selectedIds.has(session.id) && "bg-primary/5",
               )}
             >
+              <TableCell>
+                <Checkbox
+                  checked={selectedIds.has(session.id)}
+                  onCheckedChange={() => onToggle(session.id)}
+                  aria-label={`Select ${session.candidateProfile.candidateName}`}
+                />
+              </TableCell>
               <TableCell>
                 <div>
                   <p className="font-medium text-foreground">
@@ -1235,7 +1356,17 @@ function CandidatesTable({ sessions, onDelete }: { sessions: CandidateSessionRec
   );
 }
 
-function CandidatesKanban({ sessions, onDelete }: { sessions: CandidateSessionRecord[]; onDelete: (id: string) => void }) {
+function CandidatesKanban({
+  sessions,
+  onDelete,
+  selectedIds,
+  onToggle,
+}: {
+  sessions: CandidateSessionRecord[];
+  onDelete: (id: string) => void;
+  selectedIds: Set<string>;
+  onToggle: (id: string) => void;
+}) {
   const byStatus = KANBAN_COLUMNS.reduce(
     (acc, { status }) => {
       acc[status] = sessions.filter((session) => session.status === status);
@@ -1263,10 +1394,18 @@ function CandidatesKanban({ sessions, onDelete }: { sessions: CandidateSessionRe
               <div
                 key={session.id}
                 className={cn(
-                  "rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-card/90 p-4 shadow-[0_18px_40px_rgba(99,102,241,0.08)]",
+                  "relative rounded-[calc(var(--radius)+0.1rem)] border border-border/70 bg-card/90 p-4 shadow-[0_18px_40px_rgba(99,102,241,0.08)]",
                   session.status === "next_round" && "border-emerald-300 bg-emerald-50/40",
+                  selectedIds.has(session.id) && "ring-2 ring-primary/30",
                 )}
               >
+                <div className="absolute top-3 right-3">
+                  <Checkbox
+                    checked={selectedIds.has(session.id)}
+                    onCheckedChange={() => onToggle(session.id)}
+                    aria-label={`Select ${session.candidateProfile.candidateName}`}
+                  />
+                </div>
                 <div className="space-y-1">
                   <p className="font-medium text-foreground">
                     {session.candidateProfile.candidateName}

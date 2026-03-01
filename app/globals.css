@@ -604,6 +604,33 @@ select {
   letter-spacing: 0.02em;
 }
 
+/* === Interview Progress Bar === */
+.interview-progress-wrap {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  background: rgba(99, 102, 241, 0.1);
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.interview-progress-bar {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+  transition: width 1s linear;
+}
+
+.interview-progress-bar.progress-warning {
+  background: linear-gradient(90deg, var(--accent-warm), #f59e0b);
+}
+
+.interview-progress-bar.progress-danger {
+  background: linear-gradient(90deg, #f59e0b, var(--danger));
+  animation: timer-pulse 1.2s ease-in-out infinite;
+}
+
 .session-notice {
   padding: 1rem;
   border: 1px solid rgba(99, 102, 241, 0.14);
@@ -1359,6 +1386,335 @@ code {
 
 .connection-indicator.disconnected {
   background: var(--muted);
+}
+
+/* === Pre-Interview Checklist === */
+.pre-checklist {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.68);
+  margin: 0.5rem 0;
+}
+
+.checklist-items {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.checklist-item {
+  display: grid;
+  grid-template-columns: 2rem 1fr auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.75rem;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 0.75rem;
+}
+
+.checklist-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent);
+}
+
+.checklist-icon svg {
+  width: 1.4rem;
+  height: 1.4rem;
+}
+
+.checklist-label {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.checklist-description {
+  font-size: 0.8rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.checklist-status svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.checklist-pass {
+  color: #22c55e;
+}
+
+.checklist-fail {
+  color: var(--danger);
+}
+
+.checklist-pending {
+  color: var(--muted);
+  opacity: 0.4;
+}
+
+/* === Interview Prep Tips === */
+.prep-tips {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.68);
+  border-left: 3px solid var(--accent);
+  margin: 0.5rem 0;
+}
+
+.prep-tips-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.prep-tips-icon {
+  width: 1.2rem;
+  height: 1.2rem;
+  color: var(--accent);
+}
+
+.prep-tips-list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0;
+  padding-left: 1.1rem;
+  color: var(--muted);
+  line-height: 1.65;
+  font-size: 0.88rem;
+}
+
+/* === Connection Quality Indicator === */
+.mic-quality-indicator {
+  position: absolute;
+  top: 0.75rem;
+  left: 0.75rem;
+  display: flex;
+  align-items: flex-end;
+  gap: 0.4rem;
+}
+
+.mic-meter {
+  width: 4px;
+  height: 1.5rem;
+  background: rgba(99, 102, 241, 0.12);
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.mic-meter-fill {
+  width: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: height 80ms ease;
+}
+
+.connection-quality-dot {
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 999px;
+}
+
+.quality-good {
+  background: #22c55e;
+}
+
+.quality-fair {
+  background: #f59e0b;
+  animation: connection-pulse 1.5s ease-in-out infinite;
+}
+
+.quality-poor {
+  background: var(--danger);
+  animation: connection-pulse 0.6s ease-in-out infinite;
+}
+
+/* === Score Distribution Chart === */
+.score-distribution-svg {
+  width: 100%;
+  max-width: 24rem;
+  height: auto;
+  margin-top: 0.75rem;
+}
+
+.score-distribution-legend {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  margin-top: 0.35rem;
+  max-width: 24rem;
+}
+
+/* === Session Timeline === */
+.session-timeline {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.75rem;
+}
+
+.timeline-axis {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.timeline-tracks {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.timeline-candidate-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-track {
+  position: relative;
+  height: 1.2rem;
+  background: rgba(99, 102, 241, 0.06);
+  border-radius: 999px;
+}
+
+.timeline-bar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+  border-radius: 999px;
+  min-width: 0.5rem;
+  transition: width 400ms ease;
+}
+
+.timeline-bar-active {
+  animation: connection-pulse 2s ease-in-out infinite;
+}
+
+/* === Notification Badge === */
+.notification-badge {
+  position: absolute;
+  top: -0.3rem;
+  right: -0.3rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.2rem;
+  height: 1.2rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--accent), var(--accent-mid));
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 800;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+}
+
+/* === Bulk Action Bar === */
+.bulk-action-bar {
+  position: fixed;
+  bottom: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(246, 241, 255, 0.95));
+  backdrop-filter: blur(18px);
+  box-shadow: 0 28px 80px rgba(99, 102, 241, 0.2);
+  border-radius: 999px;
+  animation: bulk-bar-rise 300ms ease forwards;
+}
+
+.bulk-action-bar .bulk-count {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+@keyframes bulk-bar-rise {
+  from { opacity: 0; transform: translateX(-50%) translateY(1rem); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* === Candidate Comparison === */
+.comparison-grid {
+  display: grid;
+  gap: 1.5rem;
+}
+
+.comparison-column {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.comparison-score-track {
+  position: relative;
+  height: 0.5rem;
+  background: rgba(99, 102, 241, 0.08);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.comparison-score-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-warm));
+  transition: width 400ms ease;
+}
+
+.comparison-score-value {
+  position: absolute;
+  right: 0;
+  top: -1.2rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.comparison-dimension {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.comparison-dimension-label {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
 }
 
 @media (max-width: 980px) {

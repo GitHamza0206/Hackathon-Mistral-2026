@@ -5,6 +5,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DownloadSimple, Ear } from "@phosphor-icons/react";
 import type { CandidateFeedback, SessionBootstrap, TranscriptEntry } from "@/lib/interviews";
+import { PreInterviewChecklist } from "@/components/pre-interview-checklist";
+import { InterviewPrepTips } from "@/components/interview-prep-tips";
 
 interface InterviewSessionProps {
   sessionId: string;
@@ -58,11 +60,18 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
   const [experienceComment, setExperienceComment] = useState("");
   const [experienceSubmitted, setExperienceSubmitted] = useState(false);
   const [experienceSubmitting, setExperienceSubmitting] = useState(false);
+  const [checklistPassed, setChecklistPassed] = useState(false);
+  const [micLevel, setMicLevel] = useState(0);
+  const [connectionQuality, setConnectionQuality] = useState<"good" | "fair" | "poor">("good");
   const conversationIdRef = useRef("");
   const transcriptRef = useRef<TranscriptEntry[]>([]);
   const completionSentRef = useRef(false);
   const lastSyncedSignatureRef = useRef("");
   const syncTimeoutRef = useRef<number | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+  const micAnimationRef = useRef<number | null>(null);
+  const lastMessageTimeRef = useRef(Date.now());
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -76,6 +85,7 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
 
   const conversation = useConversation({
     onMessage: (message) => {
+      lastMessageTimeRef.current = Date.now();
       const entry = mapMessageToTranscript(message);
 
       if (!entry) {
@@ -95,6 +105,18 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
       setError(formatConversationError(message, context));
     },
   });
+
+  // Connection quality heuristic based on message gap
+  useEffect(() => {
+    if (conversation.status !== "connected") {
+      setConnectionQuality("good");
+      return;
+    }
+    const gap = (now - lastMessageTimeRef.current) / 1000;
+    if (gap > 20) setConnectionQuality("poor");
+    else if (gap > 10) setConnectionQuality("fair");
+    else setConnectionQuality("good");
+  }, [now, conversation.status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -155,7 +177,36 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     try {
       setStarting(true);
       setError("");
-      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // Set up audio analyser for mic level meter
+      try {
+        const audioCtx = new AudioContext();
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        audioContextRef.current = audioCtx;
+        analyserRef.current = analyser;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const pollMicLevel = () => {
+          if (!analyserRef.current) return;
+          analyserRef.current.getByteTimeDomainData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            const v = (dataArray[i] - 128) / 128;
+            sum += v * v;
+          }
+          const rms = Math.sqrt(sum / dataArray.length);
+          setMicLevel(Math.min(100, Math.round(rms * 400)));
+          micAnimationRef.current = requestAnimationFrame(pollMicLevel);
+        };
+        micAnimationRef.current = requestAnimationFrame(pollMicLevel);
+      } catch {
+        // Audio analyser is optional — don't block the interview
+      }
+
       if (!bootstrap.agentId) {
         throw new Error("Unable to start the interview session.");
       }
@@ -271,8 +322,22 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
     [bootstrap, conversationId, sessionId],
   );
 
+  function cleanupAudioAnalyser() {
+    if (micAnimationRef.current) {
+      cancelAnimationFrame(micAnimationRef.current);
+      micAnimationRef.current = null;
+    }
+    if (audioContextRef.current) {
+      audioContextRef.current.close().catch(() => {});
+      audioContextRef.current = null;
+    }
+    analyserRef.current = null;
+    setMicLevel(0);
+  }
+
   async function stopInterview() {
     const stoppedAt = new Date().toISOString();
+    cleanupAudioAnalyser();
 
     setBootstrap((current) =>
       current
@@ -368,6 +433,9 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
   const completed =
     bootstrap?.status === "completed" || isScoredStatus || finalizing;
   const timer = bootstrap ? buildSessionTimer(bootstrap, now, conversation.status === "connected") : null;
+  const totalSeconds = bootstrap ? bootstrap.durationMinutes * 60 : 0;
+  const elapsedSeconds = totalSeconds - (timer?.remainingSeconds ?? totalSeconds);
+  const progressPercent = totalSeconds > 0 ? Math.min(100, Math.max(0, (elapsedSeconds / totalSeconds) * 100)) : 0;
   const phase = deriveSessionPhase(
     bootstrap,
     conversation.status,
@@ -466,6 +534,15 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
 
             <p className="section-copy">{bootstrap.intro}</p>
 
+            {(phase === "active" || phase === "winding_down" || phase === "overtime") && (
+              <div className="interview-progress-wrap">
+                <div
+                  className={`interview-progress-bar${timer?.urgency === "danger" ? " progress-danger" : timer?.urgency === "warning" ? " progress-warning" : ""}`}
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            )}
+
             {(phase === "ready" || phase === "active" || phase === "winding_down" || phase === "overtime") && (
               <div className="session-notice">
                 <p className="section-copy">
@@ -474,13 +551,24 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
               </div>
             )}
 
+            {phase === "ready" && (
+              <>
+                <PreInterviewChecklist onAllPassed={setChecklistPassed} />
+                <InterviewPrepTips
+                  focusAreas={bootstrap.focusAreas ?? []}
+                  roleTitle={bootstrap.roleTitle}
+                  durationMinutes={bootstrap.durationMinutes}
+                />
+              </>
+            )}
+
             {phase !== "processing" && phase !== "feedback" && (
               <div className="candidate-actions">
                 <button
                   className="primary-button"
                   type="button"
                   onClick={startInterview}
-                  disabled={!bootstrap.agentId || completed || starting || conversation.status !== "disconnected"}
+                  disabled={!bootstrap.agentId || completed || starting || conversation.status !== "disconnected" || !checklistPassed}
                 >
                   {starting || conversation.status === "connecting"
                     ? "Connecting..."
@@ -528,6 +616,14 @@ export function InterviewSession({ sessionId }: InterviewSessionProps) {
                   </div>
                 )}
                 <span className={`connection-indicator ${conversation.status}`} />
+                {conversation.status === "connected" && (
+                  <div className="mic-quality-indicator">
+                    <div className="mic-meter">
+                      <div className="mic-meter-fill" style={{ height: `${micLevel}%` }} />
+                    </div>
+                    <span className={`connection-quality-dot quality-${connectionQuality}`} />
+                  </div>
+                )}
               </div>
             )}
 
